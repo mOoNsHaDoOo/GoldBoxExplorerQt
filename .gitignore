@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+obj/
+
+# CMake / Ninja / Make generated files (in case of in-source builds)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+compile_commands.json
+.ninja_deps
+.ninja_log
+*.ninja
+Makefile
+
+# Compiled objects / libraries / executables
+*.o
+*.obj
+*.lo
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.app
+*.pdb
+*.ilk
+*.exp
+*.idb
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+*.dmg
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.core
+core.*
+*.pid
+
+# ---------------------------------------------------------------------------
+# IDE / editor files
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+.cache/
+.clangd/
+*.user
+*.user.*
+CMakeLists.txt.user*
+*.swp
+*.swo
+*~
+
+# Generated Xcode project (if you configure with -G Xcode)
+build-xcode/
+*.xcodeproj/
+*.xcworkspace/
+
+# ---------------------------------------------------------------------------
+# Keep the synthetic test data and documentation screenshots.
+# They are small, non-copyrighted files used by the smoke tests.
+# ---------------------------------------------------------------------------
+!testdata/
+!docs/
+!docs/screenshot.png

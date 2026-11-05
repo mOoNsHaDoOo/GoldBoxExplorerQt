@@ -1,0 +1,99 @@
+# Porting notes: C# WinForms → C++17/Qt 6
+
+This document maps the original classes to the Qt port and records the
+deliberate behaviour changes.
+
+## Architecture mapping
+
+| Original (C#) | Port (C++) |
+| --- | --- |
+| `Explorer/Program.cs` | `src/main.cpp` |
+| `Explorer/MainForm.cs` + `MainForm.Designer.cs` | `src/MainWindow.h/.cpp` |
+| `Explorer/MainViewPresenter.cs` | `src/MainWindow.cpp` (the presenter is folded into the window because the Qt widget API already separates selection, viewing, and zoom cleanly) |
+| `Explorer/ExportForm.cs` | `src/ExportDialog.h/.cpp` |
+| `Explorer/FileDto.cs` | `fileType()` / `formatSize()` / file table population in `MainWindow.cpp` |
+| `Common/Plugins/IPlugin.cs` | `src/plugins/plugin.h` |
+| `Common/Plugins/PluginFactory.cs` | `src/plugins/pluginfactory.cpp` |
+| `Common/Plugins/PluginParameter.cs` | `PluginParameters` in `plugin.h` |
+| `Common/GoldBoxFile.cs` | replaced by direct `QByteArray` reads in each parser |
+| `Common/Frua/ByteHelper.cs` and `StringExtensions.cs` | `src/core/byteutils.h` |
+| `Plugins/FileHelper.cs` | `src/core/game.h/.cpp` (`GameDetector`) |
+
+### Plugins and viewers
+
+| Original plugin | Port class | Viewer |
+| --- | --- | --- |
+| `DaxImagePlugin` | `DaxImagePlugin` | `ImageSheetView` |
+| `DaxWallDefPlugin` | `DaxWallDefPlugin` | tabbed `ImageSheetView`s |
+| `FruaTblPlugin` | `TlbPlugin` | `ImageSheetView` |
+| `TextFilePlugin` | `TextPlugin` | `QPlainTextEdit` |
+| `ImagePlugin` | `ImagePlugin` | `QScrollArea` + `QLabel` |
+| `HexPlugin` (default) | `HexPlugin` | `HexView` |
+| `FruaCharacterPlugin` | `CharacterPlugin` | `CharacterView` |
+| `FruaItemPlugin` | `ItemsPlugin` | `QTableWidget` |
+| `FruaGameDataPlugin` | `GameDataPlugin` | `QPlainTextEdit` |
+| `FruaSavedGamePlugin` | `SavedGamePlugin` | `QPlainTextEdit` |
+| `FruaVaultPlugin` (disabled upstream) | `VaultPlugin` | `QPlainTextEdit` |
+| `FruaGlbPlugin` | `GlbPlugin` | `HexView` (same fallback as upstream) |
+| `FruaGeoPlugin` | `GeoPlugin` | tabbed summary/map text |
+| `GeoDaxPlugin` | `GeoDaxPlugin` | 2D `GeoMapWidget` tabs |
+| `DaxEclPlugin` | `EclPlugin` | per-block strings and combined text |
+
+### File-format code
+
+| Original | Port |
+| --- | --- |
+| `Plugins/Dax/DaxFile.cs` | `src/core/daxfile.cpp` |
+| `Plugins/Dax/DaxFileHeaderEntry.cs`, `DaxFileBlock.cs` | `DaxFileBlock` in `daxfile.h` |
+| `Plugins/Dax/EgaVgaPalette.cs` | `src/dax/palette.h/.cpp` |
+| `Plugins/Dax/*Block*.cs` | `src/dax/renderblocks.h/.cpp` |
+| `Plugins/Dax/DaxImageFile.cs` | `src/dax/daximagefile.cpp` |
+| `Plugins/Dax/DaxWallDefFile.cs` | `src/dax/walldef.cpp` |
+| `Plugins/Tbl/FruaTlbFile.cs` | `src/tbl/tlbfile.cpp` |
+| `Plugins/Character/FruaCharacter.cs` | `src/parse/character.cpp` |
+| `Plugins/Character` name tables | generated `src/parse/character_tables.*` |
+| `Plugins/Items/FruaItem.cs` name parts | generated `src/parse/item_names.*` |
+| `Plugins/GeoDax/GeoDaxFile.cs` map names | generated `src/parse/geodax_names.*` |
+| `Plugins/Geo/FruaGeoFile.cs` | `src/parse/geo.cpp` |
+| `Plugins/GeoDax/GeoDaxFile.cs` (map records) | `src/parse/geodax.cpp` |
+| `Plugins/DaxEcl/DaxEclFile.cs` string extraction | `src/parse/ecl.cpp` |
+
+## Deliberate behaviour changes
+
+- **Rendering backend.** GDI+ `Bitmap` + `SetPixel` became `QImage`
+  (`Format_ARGB32`) + `setPixel`. Images are drawn with nearest-neighbour
+  scaling so the pixel art stays crisp.
+- **Colour values.** The original's `uint` ARGB constants are represented as
+  `QRgb` values. `EGAtransparentColor` (0xFF67F79F) remains an opaque colour,
+  exactly as in the original, rather than an alpha-transparent pixel.
+- **Unsafe indexing.** Several C# paths index the byte array without bounds
+  checks. The port returns zeroes for out-of-range reads and skips
+  out-of-range writes so malformed files do not crash the viewer.
+- **File paths.** `WALLDEF` → `8x8d` replacement and the external
+  `DUNGCOM.TLB` lookup resolve file names case-insensitively. This is required
+  on macOS/Linux and harmless on Windows.
+- **Text detection.** The original round-trips the file through
+  `StreamReader`/`StreamWriter` to decide whether it is text. The port accepts
+  UTF-8/UTF-16/UTF-32 with a BOM, rejects files containing NUL bytes, and
+  otherwise requires at least 95% printable characters. This also makes
+  legacy DOS/ASCII text files display reliably.
+- **Character viewer.** The original paints one row per annotation inside a
+  panel; the port uses a two-column table for faster scrolling and easier
+  copying, while keeping the same annotation order, values, and item-template
+  name row.
+- **Vault viewer.** `FruaVaultPlugin` is commented out in the upstream plugin
+  factory. The parser here is bounds-safe, so the port enables it.
+- **Error handling.** The original shows a custom unhandled-exception dialog.
+  The port avoids throwing for malformed files and shows inline messages or
+  empty viewers instead.
+
+## Remaining work
+
+The largest missing subsystem is the ECL disassembler. Upstream splits it
+across `DaxEcl/Commands.cs`, `Program.cs`, `Memory.cs`, and `Sys.cs`, and it
+produces the annotated per-instruction listing shown by `EclFileViewer`. A
+direct port is feasible with the existing `EclFile` block access, but is not
+part of this first Qt milestone.
+
+The GeoDAX 3D first-person renderer and its ECL cross-navigation are also
+left for a later pass; the 2D map and map naming are implemented.
