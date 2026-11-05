@@ -211,8 +211,60 @@ def main() -> None:
     make_data_files(OUT)
     make_geo_files(OUT)
     make_ecl_file(OUT)
+    make_amiga_files(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
+
+
+
+def make_amiga_files(out: Path) -> None:
+    import math
+
+    # 8SVX: 1 second of a 440 Hz sine at 11025 Hz, signed 8-bit mono.
+    rate = 11025
+    frames = 1000
+    samples = bytes(
+        (int(110 * math.sin(2 * math.pi * 440 * i / rate)) & 0xFF)
+        for i in range(frames)
+    )
+    vhdr = struct.pack(">IIIHBBI", frames, 0, 0, rate, 1, 0, 0x10000)
+    name = b"TEST SOUND"
+    chunks = b"VHDR" + struct.pack(">I", len(vhdr)) + vhdr
+    chunks += b"NAME" + struct.pack(">I", len(name)) + name + (b"\0" if len(name) & 1 else b"")
+    chunks += b"BODY" + struct.pack(">I", len(samples)) + samples
+    if len(samples) & 1:
+        chunks += b"\0"
+    form_size = 4 + len(chunks)
+    (out / "TEST.8SVX").write_bytes(b"FORM" + struct.pack(">I", form_size) + b"8SVX" + chunks)
+
+    # ILBM: 64x32, 4 planes, uncompressed.
+    width, height, planes = 64, 32, 4
+    row_bytes = ((width + 15) // 16) * 2
+    bmhd = struct.pack(">HHhhBBBBHBBhh", width, height, 0, 0, planes, 0, 0, 0, 0, 10, 11, width, height)
+    cmap = b"".join(bytes([(i * 17) % 256, (i * 7) % 256, (i * 3) % 256]) for i in range(16))
+    body = bytearray()
+    for y in range(height):
+        for plane in range(planes):
+            row = bytearray(row_bytes)
+            for x in range(width):
+                if ((x // 8) + (y // 8) + plane) & 1:
+                    row[x // 8] |= 0x80 >> (x & 7)
+            body += row
+    chunks = b"BMHD" + struct.pack(">I", len(bmhd)) + bmhd
+    chunks += b"CMAP" + struct.pack(">I", len(cmap)) + cmap
+    chunks += b"BODY" + struct.pack(">I", len(body)) + bytes(body)
+    form_size = 4 + len(chunks)
+    ilbm = b"FORM" + struct.pack(">I", form_size) + b"ILBM" + chunks
+    (out / "TEST.DAA").write_bytes(ilbm)
+    (out / "TEST-LBM.IFF").write_bytes(ilbm)
+
+    # An ANIM base frame with the same bitmap chunks.
+    anim = b"FORM" + struct.pack(">I", form_size - 4 + 4) + b"ANIM" + chunks
+    (out / "TEST.ANIM").write_bytes(anim)
+
+    # A DAA that is really a DAX container, plus an unknown binary DAA.
+    (out / "DAXIN.DAA").write_bytes((out / "PIC.DAX").read_bytes())
+    (out / "UNKNOWN.DAA").write_bytes(bytes([0x44, 0x41, 0x41, 0x01]) + bytes(range(64)))
 
 if __name__ == "__main__":
     main()

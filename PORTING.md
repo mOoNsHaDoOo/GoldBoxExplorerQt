@@ -38,6 +38,7 @@ deliberate behaviour changes.
 | `FruaGeoPlugin` | `GeoPlugin` | tabbed summary/map text |
 | `GeoDaxPlugin` | `GeoDaxPlugin` | 2D `GeoMapWidget` tabs |
 | `DaxEclPlugin` | `EclPlugin` | per-block strings and combined text |
+| *(new)* Amiga IFF/8SVX | `AudioPlugin`, `DaaPlugin` | `AudioView`, `ImageSheetView`, summary/hex tabs |
 
 ### File-format code
 
@@ -57,6 +58,8 @@ deliberate behaviour changes.
 | `Plugins/Geo/FruaGeoFile.cs` | `src/parse/geo.cpp` |
 | `Plugins/GeoDax/GeoDaxFile.cs` (map records) | `src/parse/geodax.cpp` |
 | `Plugins/DaxEcl/DaxEclFile.cs` string extraction | `src/parse/ecl.cpp` |
+| *(new)* Amiga IFF reader | `src/parse/iff.cpp` |
+| *(new)* 8SVX/16SV reader and WAV writer | `src/parse/audio.cpp` |
 
 ## Deliberate behaviour changes
 
@@ -83,6 +86,16 @@ deliberate behaviour changes.
   name row.
 - **Vault viewer.** `FruaVaultPlugin` is commented out in the upstream plugin
   factory. The parser here is bounds-safe, so the port enables it.
+- **DAA/IFF previews.** The original application has no Amiga asset support.
+  `.DAA`/`.DAI` are treated as containers: the viewer first tries IFF
+  ILBM/PBM/ANIM and 8SVX, then a DAX image container, and finally falls back
+  to an IFF chunk/string summary plus hex. If a game uses a proprietary DAA
+  layout that is none of these, the summary is still available but no decoded
+  image is shown.
+- **Audio playback.** Qt Multimedia is not required. The port writes a
+  temporary PCM WAV and plays it with the platform player (`afplay` on macOS,
+  `aplay`/`paplay`/`ffplay` on Linux, PowerShell `SoundPlayer` on Windows).
+  `Save WAV...` always works without an external player.
 - **Error handling.** The original shows a custom unhandled-exception dialog.
   The port avoids throwing for malformed files and shows inline messages or
   empty viewers instead.

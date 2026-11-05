@@ -48,6 +48,10 @@ std::unique_ptr<Plugin> create(const QString &path)
         return std::make_unique<VaultPlugin>();
     if (matches<TlbPlugin>(path))
         return std::make_unique<TlbPlugin>();
+    if (matches<AudioPlugin>(path))
+        return std::make_unique<AudioPlugin>();
+    if (matches<DaaPlugin>(path))
+        return std::make_unique<DaaPlugin>();
     if (matches<ImagePlugin>(path))
         return std::make_unique<ImagePlugin>();
     if (matches<TextPlugin>(path))

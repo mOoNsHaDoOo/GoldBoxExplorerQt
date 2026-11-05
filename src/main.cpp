@@ -1,10 +1,12 @@
 #include "MainWindow.h"
 
+#include "parse/audio.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
 
 #include <QApplication>
 #include <QDebug>
+#include <QFile>
 #include <QStyleFactory>
 #include <QTimer>
 
@@ -44,6 +46,27 @@ int main(int argc, char *argv[])
             qInfo().noquote() << "  " << i << bitmaps[i].width() << "x" << bitmaps[i].height();
         delete viewer;
         return bitmaps.isEmpty() ? 1 : 0;
+    }
+
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--audio")) {
+        QFile input(QString::fromLocal8Bit(argv[2]));
+        if (!input.open(QIODevice::ReadOnly))
+            return 2;
+        AudioSample sample;
+        QString error;
+        if (!load8svx(input.readAll(), sample, &error)) {
+            qWarning().noquote() << error;
+            return 1;
+        }
+        qInfo().noquote() << "audio:" << sample.sampleRate << "Hz" << sample.bits << "bit"
+                          << sample.frameCount << "frames" << sample.durationMs() << "ms";
+        QFile output(QStringLiteral("/tmp/gbexplorer_audio.wav"));
+        if (output.open(QIODevice::WriteOnly)) {
+            output.write(sample.toWav());
+            output.close();
+            qInfo().noquote() << "wrote /tmp/gbexplorer_audio.wav";
+        }
+        return 0;
     }
 
     MainWindow window;

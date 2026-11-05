@@ -164,3 +164,33 @@ private:
     GeoDaxView *m_view = nullptr;
     float m_zoom = 1.0f;
 };
+
+class AudioPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
+// Preview for Gold Box .DAA/.DAI files. The format is container-like, so the
+// plugin tries IFF (ILBM/PBM/8SVX/ANIM) and DAX content before falling back to
+// a structural summary and hex view.
+class DaaPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+    void setZoom(float zoom) override;
+    void setContainerWidth(int width) override;
+    bool isImageFile() const override { return m_isImage; }
+    QVector<QImage> getBitmaps() override;
+    QVector<int> getBitmapIds() override;
+
+private:
+    QImage m_image;
+    std::unique_ptr<DaxImageFile> m_dax;
+    ImageSheetView *m_sheet = nullptr;
+    bool m_isImage = false;
+    float m_zoom = 1.0f;
+    int m_containerWidth = 800;
+};

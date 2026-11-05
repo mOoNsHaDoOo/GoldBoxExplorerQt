@@ -29,15 +29,19 @@ add_executable(gbexplorer
     src/parse/geodax_names.cpp
     src/parse/ecl.cpp
     src/parse/item_names.cpp
+    src/parse/iff.cpp
+    src/parse/audio.cpp
 
     src/widgets/imagesheetview.cpp
     src/widgets/hexview.cpp
     src/widgets/characterview.cpp
+    src/widgets/audioview.cpp
 
     src/plugins/pluginfactory.cpp
     src/plugins/imageplugins.cpp
     src/plugins/dataplugins.cpp
     src/plugins/geoplugins.cpp
+    src/plugins/audioplugins.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)
@@ -68,7 +72,7 @@ include(CTest)
 if(BUILD_TESTING)
     # Synthetic files from tools/make_testdata.py. Each of these should decode
     # at least one image; --probe returns non-zero otherwise.
-    foreach(test_file PIC.DAX BIG.DAX SPRITES.DAX STRATA.DAX MIXED.DAX MIXEDVGA.DAX 8X8TEST.DAX IMAGES.TLB BIG.TLB)
+    foreach(test_file PIC.DAX BIG.DAX SPRITES.DAX STRATA.DAX MIXED.DAX MIXEDVGA.DAX 8X8TEST.DAX IMAGES.TLB BIG.TLB TEST.DAA DAXIN.DAA TEST.ANIM TEST-LBM.IFF)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
             add_test(NAME probe_${test_file}
                      COMMAND gbexplorer --probe "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
@@ -76,4 +80,11 @@ if(BUILD_TESTING)
                                  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         endif()
     endforeach()
+
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")
+        add_test(NAME audio_8svx
+                 COMMAND gbexplorer --audio "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")
+        set_tests_properties(audio_8svx PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()

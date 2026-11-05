@@ -28,6 +28,8 @@ Windows.
 | TLB graphics | TILE and master libraries, drawing methods 16/17/18/21/23, internal/external colour tables, CBODY/CPIC combat icons |
 | Image export | PNG/BMP/JPEG through the file context menu, same naming scheme as the original exporter |
 | Generic viewers | Text, PNG/JPEG/GIF/BMP/TGA/TIFF (as supported by Qt), and a fast hex viewer |
+| Amiga audio | 8SVX/16SV IFF audio with waveform preview, playback (afplay/aplay/paplay/ffplay/PowerShell), and WAV export |
+| Amiga / DAA assets | `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM`: auto-detects IFF ILBM/PBM images, IFF ANIM base frames, IFF 8SVX audio, and DAX image containers; otherwise shows chunk metadata, strings, and hex |
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*.DAX`, `ITEM*.DAX`), item tables, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
 | GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events |
@@ -138,6 +140,14 @@ QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
     --smoke testdata/BIG.DAX
 ```
 
+Audio parsing and WAV conversion can be checked without a window:
+
+```sh
+QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
+    --audio testdata/TEST.8SVX
+# writes /tmp/gbexplorer_audio.wav
+```
+
 On Linux/Windows use `./build/gbexplorer` (or the `.exe`) instead of the
 bundle path.
 
@@ -150,8 +160,8 @@ src/
   core/                 ByteReader, DAX container reader, game detection
   dax/                  Palette, render blocks, image file, wall sets
   tbl/                  TLB reader and image decoding
-  parse/                Character/item/GEO/GEODAX/ECL parsers and name tables
-  widgets/              Image sheet, hex, and character views
+  parse/                Character/item/GEO/GEODAX/ECL parsers, IFF and 8SVX readers, name tables
+  widgets/              Image sheet, hex, character, and audio views
   plugins/              Plugin interface, factory, and concrete plugins
 tools/make_testdata.py  Synthetic file generator
 testdata/               Generated smoke-test files
