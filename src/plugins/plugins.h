@@ -139,6 +139,16 @@ public:
     QWidget *createViewer(const PluginParameters &parameters) override;
 };
 
+// Item/effect records stored inside Amiga DAX containers (ITEM*.DAX,
+// MON*ITM.DAX, MON*SPC.DAX). The original character plugin only enabled this
+// for Pool of Radiance; the same record layouts are useful in the Krynn games.
+class DaxRecordPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
 class GeoPlugin : public Plugin
 {
 public:

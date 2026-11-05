@@ -213,9 +213,38 @@ def main() -> None:
     make_ecl_file(OUT)
     make_amiga_files(OUT)
     make_daa_container(OUT)
+    make_item_dax(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
+
+
+def make_item_dax(out: Path) -> None:
+    """Two 63-byte item records in a DOS-style DAX container."""
+    records = bytearray()
+    for index, name in enumerate((b"Long Sword", b"Potion")):
+        item = bytearray(63)
+        item[0] = len(name)
+        item[1:1 + len(name)] = name
+        item[0x2E] = 35  # long sword item type
+        item[0x32] = index + 1
+        item[0x34] = 1
+        item[0x39] = 1
+        item[0x3A] = 10 * (index + 1)
+        records += item
+
+    compressed = bytearray()
+    pos = 0
+    while pos < len(records):
+        count = min(128, len(records) - pos)
+        compressed.append(count - 1)
+        compressed += records[pos:pos + count]
+        pos += count
+
+    entry = bytes([1]) + struct.pack("<iHH", 0, len(records), len(compressed))
+    (out / "TESTITEM.DAX").write_bytes(
+        struct.pack("<h", 2 + 9 - 2) + entry + bytes(compressed)
+    )
 
 
 def make_daa_container(out: Path) -> None:

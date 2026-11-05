@@ -33,7 +33,7 @@ project is portable to Linux and Windows.
 | Generic viewers | Text, PNG/JPEG/GIF/BMP/TGA/TIFF (as supported by Qt), and a fast hex viewer |
 | Amiga audio | 8SVX/16SV IFF audio with waveform preview, metadata, playback, and WAV export |
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |
-| Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*.DAX`, `ITEM*.DAX`), item tables, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
+| Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`), `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
 | GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events |
 | ECL (.DAX) | Per-block extracted strings, combined ECL text, and raw hex |
@@ -66,6 +66,10 @@ project is portable to Linux and Windows.
   4. IFF ANIM → first available base frame
   5. DAX container → all decoded DAX images
   6. unknown layout → chunk/string summary + hex view
+- **Amiga item/effect DAX records.** `ITEM1.DAX`/`ITEM2.DAX` and
+  `MON*ITM.DAX` are decoded as 63-byte item records; `MON*SPC.DAX` is decoded
+  as 9-byte effect records. The viewer shows a tab per record with the same
+  annotated fields as the original character/item viewer.
 - **Extension-less Amiga sounds.** The audio plugin now detects 8SVX by IFF
   content, so files such as `Sound/arrow` and `Sound/fireb` open even without
   an extension.
@@ -171,6 +175,9 @@ The root folder is stored with `QSettings` under the `GoldBoxExplorer` /
   8×8 tile banks. Multi-frame combat banks (`DUNGCOM.DAA`, `WILDCOM.DAA`,
   `RANDCOM.DAA`) and the alternate `pic*.daa` / `SPRIT*.DAA` layouts still
   fall back to the structural summary and hex view.
+- `MON*CHA.DAX` (Amiga character records, 409-byte blocks) is not decoded yet
+  and currently opens in the hex viewer. Item and effect DAX records are
+  decoded.
 - `.DAA` is not a single standard format. IFF, ANIM, DAX, and the native
   Gold Box DAA container are decoded automatically. A proprietary layout that
   is none of these still gets the structural summary and hex view, but would
@@ -215,9 +222,9 @@ Run the CTest suite:
 ctest --test-dir build --output-on-failure
 ```
 
-Current result: **15/15 tests passed**, covering the DAX renderers, TLB
-decoding, native DAA containers, IFF/ANIM images, DAX-in-DAA, and 8SVX audio
-parsing/WAV output.
+Current result: **16/16 tests passed**, covering the DAX renderers, TLB
+decoding, native DAA containers, IFF/ANIM images, DAX-in-DAA, item-record DAX
+viewing, and 8SVX audio parsing/WAV output.
 
 On Linux/Windows use `./build/gbexplorer` (or the `.exe`) instead of the
 bundle path.

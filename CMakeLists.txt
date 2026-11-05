@@ -82,6 +82,14 @@ if(BUILD_TESTING)
         endif()
     endforeach()
 
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTITEM.DAX")
+        add_test(NAME smoke_item_dax
+                 COMMAND gbexplorer --smoke "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTITEM.DAX")
+        set_tests_properties(smoke_item_dax PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             TIMEOUT 10)
+    endif()
+
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")
         add_test(NAME audio_8svx
                  COMMAND gbexplorer --audio "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")

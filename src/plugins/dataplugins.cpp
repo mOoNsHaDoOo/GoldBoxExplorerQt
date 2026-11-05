@@ -1,7 +1,9 @@
 #include "plugins/plugins.h"
 
 #include "core/byteutils.h"
+#include "parse/character.h"
 #include "parse/item_names.h"
+#include "widgets/characterview.h"
 #include "widgets/hexview.h"
 
 #include <QDir>
@@ -221,6 +223,33 @@ void configurePlainText(QPlainTextEdit *view, const QString &text)
 }
 
 } // namespace
+
+bool DaxRecordPlugin::isSatisfiedBy(const QString &path) const
+{
+    const QFileInfo info(path);
+    const QString name = info.fileName().toUpper();
+    if (!name.endsWith(QStringLiteral(".DAX")))
+        return false;
+
+    // Item records (ITEM*.DAX, MON*ITM.DAX) and effect records (MON*SPC.DAX).
+    // Character containers (MON*CHA.DAX) use a different Amiga record length
+    // and are left to the hex viewer for now.
+    return name.contains(QStringLiteral("ITEM"))
+           || name.contains(QStringLiteral("ITM"))
+           || name.contains(QStringLiteral("SPC"));
+}
+
+QWidget *DaxRecordPlugin::createViewer(const PluginParameters &parameters)
+{
+    CharacterDocument document;
+    QString error;
+    if (!loadCharacterDocument(parameters.filename, document, &error)) {
+        auto *view = new QPlainTextEdit;
+        configurePlainText(view, QStringLiteral("Unable to read the DAX record file:\n%1").arg(error));
+        return view;
+    }
+    return new CharacterView(document);
+}
 
 bool GameDataPlugin::isSatisfiedBy(const QString &path) const
 {

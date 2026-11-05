@@ -31,6 +31,7 @@ deliberate behaviour changes.
 | `HexPlugin` (default) | `HexPlugin` | `HexView` |
 | `FruaCharacterPlugin` | `CharacterPlugin` | `CharacterView` |
 | `FruaItemPlugin` | `ItemsPlugin` | `QTableWidget` |
+| `FruaCharacterPlugin` (DAX item/effect records) | `DaxRecordPlugin` | `CharacterView` |
 | `FruaGameDataPlugin` | `GameDataPlugin` | `QPlainTextEdit` |
 | `FruaSavedGamePlugin` | `SavedGamePlugin` | `QPlainTextEdit` |
 | `FruaVaultPlugin` (disabled upstream) | `VaultPlugin` | `QPlainTextEdit` |
@@ -87,6 +88,11 @@ deliberate behaviour changes.
   name row.
 - **Vault viewer.** `FruaVaultPlugin` is commented out in the upstream plugin
   factory. The parser here is bounds-safe, so the port enables it.
+- **Item/effect DAX records.** The upstream character plugin only enables
+  `ITEM*.DAX`/`MON*ITM.DAX` handling inside a Pool of Radiance directory. The
+  port enables the same 63-byte item records and 9-byte effect records for the
+  Krynn games as `DaxRecordPlugin`. `MON*CHA.DAX` uses a different 409-byte
+  Amiga record and remains hex-only for now.
 - **DAA/IFF previews.** The original application has no Amiga asset support.
   The native DAA container is read with a big-endian index and the same SSI
   run-length decoder as DAX; image records use a 9-byte header, a 64-byte

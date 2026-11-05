@@ -28,6 +28,8 @@ std::unique_ptr<Plugin> create(const QString &path)
         return std::make_unique<EclPlugin>();
     if (matches<GeoDaxPlugin>(path))
         return std::make_unique<GeoDaxPlugin>();
+    if (matches<DaxRecordPlugin>(path))
+        return std::make_unique<DaxRecordPlugin>();
     if (matches<DaxImagePlugin>(path))
         return std::make_unique<DaxImagePlugin>();
     if (matches<DaxWallDefPlugin>(path))
