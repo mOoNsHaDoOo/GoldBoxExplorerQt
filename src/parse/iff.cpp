@@ -25,6 +25,19 @@ quint32 be32(const QByteArray &data, int offset)
            | static_cast<quint32>(static_cast<quint8>(data.at(offset + 3)));
 }
 
+bool isFourCC(const QByteArray &data)
+{
+    if (data.size() != 4)
+        return false;
+    for (char c : data) {
+        const unsigned char u = static_cast<unsigned char>(c);
+        if (!((u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z')
+              || (u >= '0' && u <= '9') || u == ' '))
+            return false;
+    }
+    return true;
+}
+
 bool parseFormAt(const QByteArray &data, int offset, int limit, IffForm &form, int depth)
 {
     if (depth > 8 || offset < 0 || offset + 12 > limit || offset + 12 > data.size())
@@ -58,7 +71,20 @@ bool parseFormAt(const QByteArray &data, int offset, int limit, IffForm &form, i
                 form.chunks += nested.chunks;
         }
 
-        pos += available + (available & 1);
+        int next = pos + available;
+        if (available & 1) {
+            // Most IFF files pad odd chunks, but some Gold Box Amiga files do
+            // not. Prefer the position that looks like a valid chunk header.
+            const bool noPadHeader = next + 8 <= end
+                && isFourCC(data.mid(next, 4))
+                && be32(data, next + 4) <= static_cast<quint32>(end - next - 8);
+            const bool padHeader = next + 9 <= end
+                && isFourCC(data.mid(next + 1, 4))
+                && be32(data, next + 5) <= static_cast<quint32>(end - next - 9);
+            if (!noPadHeader || padHeader)
+                ++next;
+        }
+        pos = next;
     }
     return true;
 }

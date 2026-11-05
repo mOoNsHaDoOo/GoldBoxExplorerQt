@@ -54,6 +54,16 @@ std::unique_ptr<Plugin> create(const QString &path)
         return std::make_unique<AudioPlugin>();
     if (matches<DaaPlugin>(path))
         return std::make_unique<DaaPlugin>();
+    if (matches<IffPlugin>(path))
+        return std::make_unique<IffPlugin>();
+    if (matches<SoundBankPlugin>(path))
+        return std::make_unique<SoundBankPlugin>();
+    if (matches<SaveFilePlugin>(path))
+        return std::make_unique<SaveFilePlugin>();
+    if (matches<PeriodTablePlugin>(path))
+        return std::make_unique<PeriodTablePlugin>();
+    if (matches<AmigaItemsPlugin>(path))
+        return std::make_unique<AmigaItemsPlugin>();
     if (matches<ImagePlugin>(path))
         return std::make_unique<ImagePlugin>();
     if (matches<TextPlugin>(path))

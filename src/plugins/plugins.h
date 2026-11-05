@@ -183,6 +183,54 @@ public:
     QWidget *createViewer(const PluginParameters &parameters) override;
 };
 
+// Generic IFF inspector for extensionless Amiga files such as Sound/cast4
+// (FORM INST) and Sound/krynn (FORM SMUS), plus any other IFF form.
+class IffPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+    bool isImageFile() const override { return m_isImage; }
+    QVector<QImage> getBitmaps() override;
+
+private:
+    QVector<QImage> m_images;
+    bool m_isImage = false;
+};
+
+// Bank of multiple IFF forms, as used by Sound/soundData (many 8SVX samples
+// plus INST/ENVL definitions).
+class SoundBankPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
+// Amiga save/character side files: CHRDATA*.sav/.swg/.fx and SAVGAM*.DAT.
+class SaveFilePlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
+// Period table used by the Amiga music engine (Sound/periodTable).
+class PeriodTablePlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
+// Amiga "items" table (2-byte header + 256 eight-byte item templates).
+class AmigaItemsPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
 // Preview for Gold Box .DAA/.DAI files. The format is container-like, so the
 // plugin tries IFF (ILBM/PBM/8SVX/ANIM) and DAX content before falling back to
 // a structural summary and hex view.

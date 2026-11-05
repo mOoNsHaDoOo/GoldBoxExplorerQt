@@ -214,9 +214,23 @@ def main() -> None:
     make_amiga_files(OUT)
     make_daa_container(OUT)
     make_item_dax(OUT)
+    make_iff_inst(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
+
+
+def make_iff_inst(out: Path) -> None:
+    """An IFF INST definition referencing a sample name (like Sound/cast4)."""
+    def chunk(cid: bytes, data: bytes) -> bytes:
+        return cid + struct.pack(">I", len(data)) + data
+
+    body = chunk(b"PTCH", b"castPer\0")
+    body += chunk(b"VLUM", b"whislVol\0")
+    body += chunk(b"SAMP", b"tuningFork\0")
+    (out / "TESTINST.IFF").write_bytes(
+        b"FORM" + struct.pack(">I", 4 + len(body)) + b"INST" + body
+    )
 
 
 def make_item_dax(out: Path) -> None:

@@ -236,7 +236,8 @@ bool DaxRecordPlugin::isSatisfiedBy(const QString &path) const
     // and are left to the hex viewer for now.
     return name.contains(QStringLiteral("ITEM"))
            || name.contains(QStringLiteral("ITM"))
-           || name.contains(QStringLiteral("SPC"));
+           || name.contains(QStringLiteral("SPC"))
+           || name.contains(QStringLiteral("CHA"));
 }
 
 QWidget *DaxRecordPlugin::createViewer(const PluginParameters &parameters)

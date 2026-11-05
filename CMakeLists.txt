@@ -43,6 +43,8 @@ add_executable(gbexplorer
     src/plugins/dataplugins.cpp
     src/plugins/geoplugins.cpp
     src/plugins/audioplugins.cpp
+    src/plugins/iffplugin.cpp
+    src/plugins/contentplugins.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)
@@ -81,6 +83,14 @@ if(BUILD_TESTING)
                                  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         endif()
     endforeach()
+
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTINST.IFF")
+        add_test(NAME smoke_iff_inst
+                 COMMAND gbexplorer --smoke "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTINST.IFF")
+        set_tests_properties(smoke_iff_inst PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             TIMEOUT 10)
+    endif()
 
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTITEM.DAX")
         add_test(NAME smoke_item_dax

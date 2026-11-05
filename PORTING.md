@@ -40,6 +40,9 @@ deliberate behaviour changes.
 | `GeoDaxPlugin` | `GeoDaxPlugin` | 2D `GeoMapWidget` tabs |
 | `DaxEclPlugin` | `EclPlugin` | per-block strings and combined text |
 | *(new)* Amiga IFF/8SVX | `AudioPlugin`, `DaaPlugin` | `AudioView`, `ImageSheetView`, summary/hex tabs |
+| *(new)* IFF instruments/music | `IffPlugin`, `SoundBankPlugin` | summary + referenced audio tabs |
+| *(new)* Amiga save files | `SaveFilePlugin` | character/equipment/effect/save views |
+| *(new)* Amiga item table | `AmigaItemsPlugin` | byte-template table |
 
 ### File-format code
 
@@ -91,8 +94,12 @@ deliberate behaviour changes.
 - **Item/effect DAX records.** The upstream character plugin only enables
   `ITEM*.DAX`/`MON*ITM.DAX` handling inside a Pool of Radiance directory. The
   port enables the same 63-byte item records and 9-byte effect records for the
-  Krynn games as `DaxRecordPlugin`. `MON*CHA.DAX` uses a different 409-byte
-  Amiga record and remains hex-only for now.
+  Krynn games as `DaxRecordPlugin`. `MON*CHA.DAX` (409-byte Amiga character
+  blocks) is shown with the Pool of Radiance annotations as a best effort.
+- **IFF instrument files.** The original viewer only understood 8SVX/ILBM.
+  The port adds a generic IFF inspector that decodes `FORM INST` references
+  (PTCH/VLUM/SAMP), resolves referenced samples in the same directory, and
+  shows `FORM SMUS` scores and embedded sound banks.
 - **DAA/IFF previews.** The original application has no Amiga asset support.
   The native DAA container is read with a big-endian index and the same SSI
   run-length decoder as DAX; image records use a 9-byte header, a 64-byte
