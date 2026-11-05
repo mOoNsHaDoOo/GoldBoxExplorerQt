@@ -112,6 +112,11 @@ deliberate behaviour changes.
   chunks to 8SVX samples, and renders the note events through those samples
   as a looping wavetable with attack/release envelopes. This is a practical
   preview, not a Paula hardware emulation.
+- **GLB containers.** `.GLB` files are `GLIB` archives (same header layout as
+  TLB, different content types). The reader detects big/little-endian files,
+  decodes the block offsets and ID table, and exposes TEXT strings, DIG8
+  audio samples, ECL strings, and item/monster/effect records. An export
+  action writes every block to a separate `.bin` file.
 - **Curse of the Azure Bonds / Secret of the Silver Blades.** Both Amiga
   conversions package graphics in big-endian `GLIB` libraries. The TLB reader
   detects the byte order from the header file size and decodes the Amiga

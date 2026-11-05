@@ -628,25 +628,3 @@ QWidget *ItemsPlugin::createViewer(const PluginParameters &parameters)
     return table;
 }
 
-bool GlbPlugin::isSatisfiedBy(const QString &path) const
-{
-    const QFileInfo info(path);
-    if (info.suffix().toUpper() != QStringLiteral("GLB"))
-        return false;
-
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly) || file.size() < 8)
-        return false;
-    const QByteArray header = file.read(8);
-    if (header.left(4) != QByteArrayLiteral("HLIB"))
-        return false;
-    return readU32(header, 4) == static_cast<quint32>(info.size());
-}
-
-QWidget *GlbPlugin::createViewer(const PluginParameters &parameters)
-{
-    QFile file(parameters.filename);
-    if (!file.open(QIODevice::ReadOnly))
-        return new QPlainTextEdit(QStringLiteral("Unable to open the file."));
-    return new HexView(file.readAll());
-}

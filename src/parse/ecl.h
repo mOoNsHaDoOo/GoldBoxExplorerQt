@@ -24,8 +24,11 @@ public:
     const QVector<EclBlock> &blocks() const { return m_blocks; }
     QString allText() const;
 
-private:
+    // Extracts the readable strings embedded in a single ECL block.  Also
+    // used by the GLIB container viewer (ECL.GLB).
     static QStringList extractStrings(const QByteArray &data);
+
+private:
     static QString decompressString(const QByteArray &data);
     static bool isReadableText(const QString &text);
 
