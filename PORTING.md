@@ -112,6 +112,11 @@ deliberate behaviour changes.
   chunks to 8SVX samples, and renders the note events through those samples
   as a looping wavetable with attack/release envelopes. This is a practical
   preview, not a Paula hardware emulation.
+- **Curse of the Azure Bonds / Secret of the Silver Blades.** Both Amiga
+  conversions package graphics in big-endian `GLIB` libraries. The TLB reader
+  detects the byte order from the header file size and decodes the Amiga
+  planar methods 0 (4 planes) and 1 (5 planes) using the embedded colour
+  table. DOS/little-endian TLB files keep the original drawing-method path.
 - **DKK**. The Death Knights of Krynn set uses the same Amiga DAX/DAA and SMUS
   readers. `MON1WIZ.DAX` is exposed as a decoded-block table; `PIC1.DAA`
   (alternate DAA index) and the multi-frame combat DAA files are structurally

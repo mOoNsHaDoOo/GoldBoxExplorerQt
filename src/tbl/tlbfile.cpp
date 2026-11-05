@@ -60,8 +60,61 @@ bool TlbFile::load(const QString &path)
         m_error = QStringLiteral("File is too small to be a TLB file.");
         return false;
     }
+
+    // The DOS TLB files are little-endian; the Amiga conversions keep the same
+    // "GLIB" container layout but store every field big-endian.  The file size
+    // in the header makes the endianness unambiguous.
+    m_bigEndian = false;
+    if (m_bytes.left(4) == QByteArrayLiteral("GLIB")) {
+        const auto le = [&](int offset) {
+            return static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset)))
+                   | (static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset + 1))) << 8)
+                   | (static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset + 2))) << 16)
+                   | (static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset + 3))) << 24);
+        };
+        const auto be = [&](int offset) {
+            return (static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset))) << 24)
+                   | (static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset + 1))) << 16)
+                   | (static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset + 2))) << 8)
+                   | static_cast<quint32>(static_cast<quint8>(m_bytes.at(offset + 3)));
+        };
+        const quint32 sizeLe = le(4);
+        const quint32 sizeBe = be(4);
+        if (sizeBe == static_cast<quint32>(m_bytes.size()) && sizeLe != sizeBe)
+            m_bigEndian = true;
+    }
+
     m_valid = true;
     return true;
+}
+
+quint16 TlbFile::u16(ByteReader &reader) const
+{
+    if (!m_bigEndian)
+        return reader.u16();
+    const QByteArray bytes = reader.bytes(2);
+    if (bytes.size() < 2)
+        return 0;
+    return static_cast<quint16>((static_cast<quint8>(bytes.at(0)) << 8)
+                                | static_cast<quint8>(bytes.at(1)));
+}
+
+quint32 TlbFile::u32(ByteReader &reader) const
+{
+    if (!m_bigEndian)
+        return reader.u32();
+    const QByteArray bytes = reader.bytes(4);
+    if (bytes.size() < 4)
+        return 0;
+    return (static_cast<quint32>(static_cast<quint8>(bytes.at(0))) << 24)
+           | (static_cast<quint32>(static_cast<quint8>(bytes.at(1))) << 16)
+           | (static_cast<quint32>(static_cast<quint8>(bytes.at(2))) << 8)
+           | static_cast<quint32>(static_cast<quint8>(bytes.at(3)));
+}
+
+qint16 TlbFile::i16(ByteReader &reader) const
+{
+    return static_cast<qint16>(u16(reader));
 }
 
 void TlbFile::loadBitmaps()
@@ -97,8 +150,8 @@ void TlbFile::loadBitmaps()
 void TlbFile::readHeader(ByteReader &reader)
 {
     m_header.fileType = QString::fromLatin1(reader.bytes(4));
-    m_header.fileSize = reader.u32();
-    m_header.entries = reader.u16();
+    m_header.fileSize = u32(reader);
+    m_header.entries = u16(reader);
     m_header.unused = reader.u8();
     m_header.hasTable = reader.u8() == 1;
     m_header.contentType = QString::fromLatin1(reader.bytes(4));
@@ -108,11 +161,11 @@ int TlbFile::getImageCount(ByteReader &reader)
 {
     int imageCount = 0;
     if (m_header.hasTable) {
-        m_imageIdTableOffset = reader.u32();
-        m_colorDataOffset = reader.u32();
+        m_imageIdTableOffset = u32(reader);
+        m_colorDataOffset = u32(reader);
         imageCount = static_cast<int>(m_header.entries) - 2;
     } else {
-        m_colorDataOffset = reader.u32();
+        m_colorDataOffset = u32(reader);
         imageCount = static_cast<int>(m_header.entries) - 1;
     }
     return qMax(0, imageCount);
@@ -120,12 +173,12 @@ int TlbFile::getImageCount(ByteReader &reader)
 
 void TlbFile::readMasterLibrary(ByteReader &reader)
 {
-    reader.u32(); // offset to set id table, unused
+    u32(reader); // offset to set id table, unused
 
     QVector<quint32> imagePointers;
     const int count = qMax(0, static_cast<int>(m_header.entries) - 1);
     for (int i = 0; i < count; ++i)
-        imagePointers.append(reader.u32());
+        imagePointers.append(u32(reader));
 
     for (quint32 pointer : imagePointers) {
         reader.seek(static_cast<int>(pointer));
@@ -139,7 +192,17 @@ void TlbFile::readTileLibrary(ByteReader &reader, int imageCount, quint32 starti
 {
     m_offsets.clear();
     for (int i = 0; i < imageCount; ++i)
-        m_offsets.append(reader.u32());
+        m_offsets.append(u32(reader));
+
+    // The Amiga TLB files leave the palette size field at zero.  The palette
+    // runs from the colour-table offset up to the first image, so derive the
+    // entry count from that gap.
+    m_derivedColorCount = 0;
+    if (m_bigEndian && !m_offsets.isEmpty()
+        && m_offsets.first() > m_colorDataOffset + 8) {
+        m_derivedColorCount = static_cast<int>(
+            (m_offsets.first() - m_colorDataOffset - 8) / 3);
+    }
 
     if (m_combatIcon) {
         if (m_fullPath.toUpper().contains(QStringLiteral("CBODY"))) {
@@ -152,7 +215,7 @@ void TlbFile::readTileLibrary(ByteReader &reader, int imageCount, quint32 starti
             // Some FRUA combat icons use the colour pointer as an action image.
             reader.seek(16);
             imageCount += 1;
-            const quint32 actionImage = reader.u32();
+            const quint32 actionImage = u32(reader);
             m_offsets.append(actionImage);
             findAndLoadExternalColorTable();
         }
@@ -169,13 +232,23 @@ void TlbFile::readTileLibrary(ByteReader &reader, int imageCount, quint32 starti
             break;
 
         TlbImageHeader header;
-        header.imageHeight = reader.u16();
-        header.verticalOffset = reader.i16();
-        header.horizontalOffset = reader.i16();
-        header.imageWidth = reader.u8() * 4;
+        header.imageHeight = u16(reader);
+        header.verticalOffset = i16(reader);
+        header.horizontalOffset = i16(reader);
+        const quint8 widthByte = reader.u8();
+        header.imageWidth = widthByte * (m_bigEndian ? 8 : 4);
         header.drawingMethod = reader.u8();
 
         QImage image;
+        if (m_bigEndian) {
+            // Amiga TLB drawing methods are simpler: 0 is a 4-plane bitmap
+            // (16 colours) and 1 is a 5-plane bitmap (32 colours).  The other
+            // methods are compressed/format-specific and are left undecoded.
+            if (header.drawingMethod == 0)
+                image = createAmigaPlanar(header, reader, 4);
+            else if (header.drawingMethod == 1)
+                image = createAmigaPlanar(header, reader, 5);
+        } else {
         switch (header.drawingMethod) {
         case 0:
             break;
@@ -274,6 +347,7 @@ void TlbFile::readTileLibrary(ByteReader &reader, int imageCount, quint32 starti
         default:
             break;
         }
+        }
 
         if (!image.isNull()) {
             m_bitmaps.append(image);
@@ -293,11 +367,14 @@ void TlbFile::readColorTable(ByteReader &reader, quint32 startingPoint)
 
 void TlbFile::readColorTableHeader(ByteReader &reader)
 {
-    reader.u16(); // cycling value
-    m_colorFirst = reader.u16();
-    m_colorCount = reader.u16();
+    u16(reader); // cycling value
+    m_colorFirst = u16(reader);
+    m_colorCount = u16(reader);
     reader.u8(); // cycling ranges
     reader.u8(); // magic
+
+    if (m_bigEndian && m_colorCount == 0 && m_derivedColorCount > 0)
+        m_colorCount = static_cast<quint16>(qMin(m_derivedColorCount, 256));
 }
 
 void TlbFile::readColorTableData(ByteReader &reader)
@@ -361,6 +438,43 @@ QImage TlbFile::createBitmapFromBuffer(const TlbImageHeader &header, const QByte
                 continue;
             if (pixelIndex < m_palette.size())
                 image.setPixel(x, y, m_palette.at(pixelIndex));
+        }
+    }
+    return image;
+}
+
+QImage TlbFile::createAmigaPlanar(const TlbImageHeader &header, ByteReader &reader, int planes)
+{
+    const int width = header.imageWidth;
+    const int height = header.imageHeight;
+    if (width <= 0 || height <= 0 || planes <= 0)
+        return {};
+
+    const int rowBytes = (width + 7) / 8;
+    const int frameSize = planes * rowBytes * height;
+    if (frameSize <= 0)
+        return {};
+
+    const QByteArray data = reader.bytes(frameSize);
+    if (data.size() < frameSize)
+        return {};
+
+    QImage image = makeImage(width, height);
+    if (image.isNull())
+        return image;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int index = 0;
+            for (int plane = 0; plane < planes; ++plane) {
+                const int offset = plane * rowBytes * height + y * rowBytes + x / 8;
+                if (offset < 0 || offset >= data.size())
+                    continue;
+                const quint8 value = static_cast<quint8>(data.at(offset));
+                if ((value >> (7 - (x & 7))) & 1)
+                    index |= 1 << plane;
+            }
+            image.setPixel(x, y, m_palette.value(index, qRgb(0, 0, 0)));
         }
     }
     return image;

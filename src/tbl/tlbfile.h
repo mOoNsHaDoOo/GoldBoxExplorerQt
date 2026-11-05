@@ -55,12 +55,19 @@ private:
 
     QImage createBitmap(const TlbImageHeader &header, ByteReader &reader);
     QImage createBitmapFromBuffer(const TlbImageHeader &header, const QByteArray &buffer);
+    QImage createAmigaPlanar(const TlbImageHeader &header, ByteReader &reader, int planes);
     static QByteArray deinterlacePixels(const QByteArray &buffer);
+
+    quint16 u16(ByteReader &reader) const;
+    quint32 u32(ByteReader &reader) const;
+    qint16 i16(ByteReader &reader) const;
 
     QString m_fullPath;
     QByteArray m_bytes;
     QString m_error;
     bool m_valid = false;
+    bool m_bigEndian = false;
+    int m_derivedColorCount = 0;
 
     Header m_header;
     quint32 m_colorDataOffset = 0;
