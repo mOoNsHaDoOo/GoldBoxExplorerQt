@@ -117,6 +117,12 @@ deliberate behaviour changes.
   decodes the block offsets and ID table, and exposes TEXT strings, DIG8
   audio samples, ECL strings, and item/monster/effect records. An export
   action writes every block to a separate `.bin` file.
+- **Secret of the Silver Blades compressed TLBs.** `BIGPIC.TLB`, `PIC.TLB`,
+  and `8X8D.TLB` contain nested TILE libraries marked with `unused=5`; the
+  nested `size` value is the decompressed size but the payload codec is not
+  yet known. These files are shown through the GLIB container view (blocks,
+  offsets, ID table, hex, export), while Curse's uncompressed BIGPIC.TLB
+  keeps the normal TLB image path.
 - **Curse of the Azure Bonds / Secret of the Silver Blades.** Both Amiga
   conversions package graphics in big-endian `GLIB` libraries. The TLB reader
   detects the byte order from the header file size and decodes the Amiga

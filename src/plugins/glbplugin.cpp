@@ -303,12 +303,26 @@ QWidget *makeSimpleBlockTable(const QVector<GlbBlock> &blocks)
 bool GlbPlugin::isSatisfiedBy(const QString &path) const
 {
     const QFileInfo info(path);
-    if (info.suffix().toUpper() != QStringLiteral("GLB"))
+    const QString suffix = info.suffix().toUpper();
+    if (suffix != QStringLiteral("GLB") && suffix != QStringLiteral("TLB"))
         return false;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return false;
-    return GlbFile::looksLikeGlb(file.readAll());
+    const QByteArray header = file.readAll();
+    if (!GlbFile::looksLikeGlb(header))
+        return false;
+    if (suffix == QStringLiteral("GLB"))
+        return true;
+
+    // Some Amiga TLB files are master libraries whose nested TILE blocks are
+    // compressed (the "unused" header byte is 5).  The normal TLB image path
+    // cannot decode those, so route them through the generic container view.
+    GlbFile glb(path);
+    if (!glb.isValid() || glb.blocks().isEmpty())
+        return false;
+    const QByteArray &first = glb.blocks().first().data;
+    return first.size() > 16 && static_cast<quint8>(first.at(10)) == 5;
 }
 
 QWidget *GlbPlugin::createViewer(const PluginParameters &parameters)
