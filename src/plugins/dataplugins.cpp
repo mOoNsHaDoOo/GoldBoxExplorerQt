@@ -272,6 +272,27 @@ QWidget *amigaItemView(const DaxFile &dax)
     return tabs;
 }
 
+QWidget *daxBlockTable(const DaxFile &dax)
+{
+    auto *table = new QTableWidget;
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels({QStringLiteral("Block"), QStringLiteral("Bytes"),
+                                      QStringLiteral("First bytes")});
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setFont(QFont(QStringLiteral("Courier New"), 9));
+    table->setRowCount(dax.blocks().size());
+    for (int row = 0; row < dax.blocks().size(); ++row) {
+        const DaxFileBlock &block = dax.blocks().at(row);
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(block.id)));
+        table->setItem(row, 1, new QTableWidgetItem(QString::number(block.data.size())));
+        table->setItem(row, 2, new QTableWidgetItem(
+            QString::fromLatin1(block.data.left(64).toHex(' '))));
+    }
+    table->resizeColumnsToContents();
+    return table;
+}
+
 QWidget *amigaCharacterView(const DaxFile &dax)
 {
     auto *table = new QTableWidget;
@@ -320,7 +341,8 @@ bool DaxRecordPlugin::isSatisfiedBy(const QString &path) const
     return name.contains(QStringLiteral("ITEM"))
            || name.contains(QStringLiteral("ITM"))
            || name.contains(QStringLiteral("SPC"))
-           || name.contains(QStringLiteral("CHA"));
+           || name.contains(QStringLiteral("CHA"))
+           || name.contains(QStringLiteral("WIZ"));
 }
 
 QWidget *DaxRecordPlugin::createViewer(const PluginParameters &parameters)
@@ -334,6 +356,8 @@ QWidget *DaxRecordPlugin::createViewer(const PluginParameters &parameters)
         if (name.contains(QStringLiteral("CHA")))
             return amigaCharacterView(dax);
     }
+    if (dax.isValid() && name.contains(QStringLiteral("WIZ")))
+        return daxBlockTable(dax);
 
     CharacterDocument document;
     QString error;

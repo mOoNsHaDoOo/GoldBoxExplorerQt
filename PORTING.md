@@ -112,6 +112,10 @@ deliberate behaviour changes.
   chunks to 8SVX samples, and renders the note events through those samples
   as a looping wavetable with attack/release envelopes. This is a practical
   preview, not a Paula hardware emulation.
+- **DKK**. The Death Knights of Krynn set uses the same Amiga DAX/DAA and SMUS
+  readers. `MON1WIZ.DAX` is exposed as a decoded-block table; `PIC1.DAA`
+  (alternate DAA index) and the multi-frame combat DAA files are structurally
+  indexed but their pixel packing is still open.
 - **DAA/IFF previews.** The original application has no Amiga asset support.
   The native DAA container is read with a big-endian index and the same SSI
   run-length decoder as DAX; image records use a 9-byte header, a 64-byte
