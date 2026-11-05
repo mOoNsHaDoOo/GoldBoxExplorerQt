@@ -82,6 +82,34 @@ bool MxtxFile::load(const QString &path)
         return false;
     }
 
+    // The instrument wavetables follow the sequence.  Each instrument is a
+    // 32-byte single-cycle waveform; the first one starts where the byte
+    // stream becomes smooth.
+    m_waveformStart = 0;
+    for (int offset = m_eventEnd; offset + 64 <= m_data.size(); ++offset) {
+        int difference = 0;
+        for (int i = 0; i < 31; ++i) {
+            const int a = static_cast<qint8>(m_data.at(offset + i));
+            const int b = static_cast<qint8>(m_data.at(offset + i + 1));
+            difference += qAbs(b - a);
+        }
+        if (difference / 31 < 12) {
+            // The wavetable bank is 32-byte aligned.  The scan can land a
+            // few bytes early on the small parameter table before it.
+            m_waveformStart = (offset + 31) & ~31;
+            break;
+        }
+    }
+    if (m_waveformStart <= 0)
+        m_waveformStart = qMin(m_data.size(), m_eventEnd + 0x20);
+
+    for (int i = 0; i < 8; ++i) {
+        const int offset = m_waveformStart + i * 32;
+        if (offset + 32 > m_data.size())
+            break;
+        m_waveforms.append(m_data.mid(offset, 32));
+    }
+
     m_valid = true;
     return true;
 }
@@ -111,9 +139,26 @@ AudioSample MxtxFile::synthesize(const MxtxFile &file, int outputRate)
         const int end = qMin(totalSamples, start + length);
         const int attack = qMin(length / 4, outputRate / 200);
         const int release = qMin(length / 3, outputRate / 35);
+        const QByteArray *wave = nullptr;
+        if (!file.waveforms().isEmpty()) {
+            const int index = (event.velocity == 0x81) ? 1 : 0;
+            wave = &file.waveforms().at(qMin(index, file.waveforms().size() - 1));
+        }
+        int wavePeak = 1;
+        if (wave) {
+            for (char raw : *wave)
+                wavePeak = qMax(wavePeak, qAbs(static_cast<int>(static_cast<qint8>(raw))));
+        }
         double phase = 0.0;
         for (int i = start; i < end; ++i) {
-            const float value = (phase < 0.5) ? 0.28f : -0.28f;
+            float value = 0.0f;
+            if (wave) {
+                const int sampleIndex = qBound(0, static_cast<int>(phase * 32.0), 31);
+                const qint8 raw = static_cast<qint8>(wave->at(sampleIndex));
+                value = static_cast<float>(raw) / wavePeak * 0.42f;
+            } else {
+                value = (phase < 0.5) ? 0.28f : -0.28f;
+            }
             float envelope = 1.0f;
             const int local = i - start;
             if (attack > 0 && local < attack)

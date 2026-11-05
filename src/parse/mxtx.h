@@ -34,7 +34,9 @@ public:
     int headerCount() const { return m_headerCount; }
     int eventStart() const { return m_eventStart; }
     int eventEnd() const { return m_eventEnd; }
+    int waveformStart() const { return m_waveformStart; }
     int totalTicks() const { return m_totalTicks; }
+    const QVector<QByteArray> &waveforms() const { return m_waveforms; }
     const QByteArray &data() const { return m_data; }
     const QVector<MxtxEvent> &events() const { return m_events; }
 
@@ -49,7 +51,9 @@ private:
     int m_headerCount = 0;
     int m_eventStart = 0x24;
     int m_eventEnd = 0;
+    int m_waveformStart = 0;
     int m_totalTicks = 0;
+    QVector<QByteArray> m_waveforms;
     QByteArray m_data;
     QVector<MxtxEvent> m_events;
 };

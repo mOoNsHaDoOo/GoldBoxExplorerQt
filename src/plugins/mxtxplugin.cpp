@@ -104,6 +104,44 @@ QImage renderPianoRoll(const MxtxFile &file)
     return image;
 }
 
+QImage renderWavetables(const MxtxFile &file)
+{
+    const QVector<QByteArray> &waves = file.waveforms();
+    const int cellWidth = 260;
+    const int cellHeight = 180;
+    const int width = qMax(1, waves.size()) * cellWidth;
+    QImage image(width, cellHeight, QImage::Format_ARGB32);
+    image.fill(QColor(24, 24, 28));
+
+    QPainter painter(&image);
+    for (int index = 0; index < waves.size(); ++index) {
+        const QByteArray &wave = waves.at(index);
+        const int x0 = index * cellWidth + 10;
+        const int y0 = 10;
+        const int w = cellWidth - 20;
+        const int h = cellHeight - 30;
+        painter.setPen(QColor(55, 55, 62));
+        painter.drawRect(x0, y0, w, h);
+        painter.setPen(QColor(255, 196, 64));
+        int previousX = x0;
+        int previousY = y0 + h / 2;
+        for (int i = 0; i < wave.size(); ++i) {
+            const int value = static_cast<qint8>(wave.at(i));
+            const int x = x0 + (i * w) / qMax(1, wave.size() - 1);
+            const int y = y0 + h / 2 - (value * h) / 300;
+            if (i > 0)
+                painter.drawLine(previousX, previousY, x, y);
+            previousX = x;
+            previousY = y;
+        }
+        painter.setPen(QColor(200, 200, 210));
+        painter.drawText(x0 + 6, cellHeight - 8,
+                         QStringLiteral("Wave %1").arg(index));
+    }
+    painter.end();
+    return image;
+}
+
 QImage renderWaveforms(const MxtxFile &file)
 {
     constexpr int width = 1200;
@@ -173,11 +211,15 @@ QWidget *MxtxPlugin::createViewer(const PluginParameters &parameters)
                    .arg(file.eventStart(), 4, 16, QLatin1Char('0'))
                    .arg(file.eventEnd(), 4, 16, QLatin1Char('0'));
     summary += QStringLiteral("Note events: %1\n").arg(file.events().size());
+    summary += QStringLiteral("Instrument wavetables: %1 at 0x%2\n")
+                   .arg(file.waveforms().size())
+                   .arg(file.waveformStart(), 4, 16, QLatin1Char('0'));
     summary += QStringLiteral("Total ticks: %1 (about %2 s)\n\n")
                    .arg(file.totalTicks())
                    .arg(file.totalTicks() / 1000.0, 0, 'f', 1);
     summary += QStringLiteral("The sequence uses six-byte events: delta, note, velocity, duration.\n");
-    summary += QStringLiteral("The bytes after the sequence are the instrument waveform/envelope section.\n");
+    summary += QStringLiteral("The bytes after the sequence are the instrument wavetables: each is a 32-byte cycle.\n");
+    summary += QStringLiteral("The Music preview uses those cycles (high/low notes select the first two waveforms).\n");
     auto *summaryView = new QPlainTextEdit(summary);
     summaryView->setReadOnly(true);
     summaryView->setFont(QFont(QStringLiteral("Courier New"), 10));
@@ -195,6 +237,13 @@ QWidget *MxtxPlugin::createViewer(const PluginParameters &parameters)
     const AudioSample sample = MxtxFile::synthesize(file);
     if (sample.valid)
         tabs->addTab(new AudioView(sample), QStringLiteral("Music"));
+
+    auto *tableScroll = new QScrollArea;
+    auto *tableLabel = new QLabel;
+    tableLabel->setPixmap(QPixmap::fromImage(renderWavetables(file)));
+    tableLabel->resize(tableLabel->pixmap().size());
+    tableScroll->setWidget(tableLabel);
+    tabs->addTab(tableScroll, QStringLiteral("Wavetables"));
 
     auto *waveScroll = new QScrollArea;
     auto *waveLabel = new QLabel;

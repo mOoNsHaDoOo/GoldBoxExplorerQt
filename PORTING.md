@@ -131,8 +131,10 @@ deliberate behaviour changes.
 - **Music-X MXTX modules.** `SECRET.MX` is a Music-X song module: `MXTX`
   header, six-byte sequence events (delta, note, velocity, duration), and a
   waveform/envelope section. The port decodes the sequence, renders a piano
-  roll, plots the waveform section, and synthesizes a square-wave preview.
-  Applying the actual instrument waveforms is still open.
+  roll, plots the waveform section, extracts the eight 32-byte instrument
+  wavetables, and uses them in the preview. The exact per-track instrument
+  mapping is not decoded; the current preview uses the velocity byte
+  (0x80/0x81) to choose the first two cycles.
 - **Amiga SLB song banks.** `SECRET.SLB` and `CURSE.SLB` use the `SLBR`
   container: a header with loop offsets followed by two-byte music events.
   The port splits songs at `ff ff`, decodes note/rest/command events, renders

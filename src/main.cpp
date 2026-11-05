@@ -4,6 +4,7 @@
 #include "parse/audio.h"
 #include "parse/smus.h"
 #include "parse/slb.h"
+#include "parse/mxtx.h"
 #include "widgets/audioview.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -23,7 +24,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.51"));
+    QApplication::setApplicationVersion(QStringLiteral("0.52"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -82,6 +83,31 @@ int main(int argc, char *argv[])
             qApp->quit();
         });
         return app.exec();
+    }
+
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--mxtx")) {
+        MxtxFile file(QString::fromLocal8Bit(argv[2]));
+        if (!file.isValid()) {
+            qWarning().noquote() << file.errorString();
+            return 1;
+        }
+        qInfo().noquote() << "MXTX:" << file.fileSize() << "bytes, tempo" << file.tempo()
+                          << "events" << file.events().size() << "ticks" << file.totalTicks()
+                          << "sequence" << QStringLiteral("0x%1..0x%2")
+                                 .arg(file.eventStart(), 0, 16)
+                                 .arg(file.eventEnd(), 0, 16)
+                          << "waveforms" << file.waveforms().size()
+                          << "at" << QStringLiteral("0x%1").arg(file.waveformStart(), 0, 16);
+        const AudioSample sample = MxtxFile::synthesize(file);
+        if (!sample.valid) {
+            qWarning() << "MXTX synthesis failed";
+            return 1;
+        }
+        qInfo().noquote() << "duration" << sample.durationMs() << "ms";
+        QFile output(QStringLiteral("/tmp/gbexplorer_mxtx.wav"));
+        if (output.open(QIODevice::WriteOnly))
+            output.write(sample.toWav());
+        return 0;
     }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--slb")) {
