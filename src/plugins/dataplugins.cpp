@@ -1,6 +1,7 @@
 #include "plugins/plugins.h"
 
 #include "core/byteutils.h"
+#include "core/daxfile.h"
 #include "parse/character.h"
 #include "parse/item_names.h"
 #include "widgets/characterview.h"
@@ -224,6 +225,88 @@ void configurePlainText(QPlainTextEdit *view, const QString &text)
 
 } // namespace
 
+namespace {
+
+QWidget *summaryView(const QString &text)
+{
+    auto *view = new QPlainTextEdit;
+    configurePlainText(view, text);
+    return view;
+}
+
+QString blockText(const QByteArray &data)
+{
+    int end = data.indexOf('\0');
+    if (end < 0)
+        end = data.size();
+    return QString::fromLatin1(data.left(end)).trimmed();
+}
+
+QWidget *amigaItemView(const DaxFile &dax)
+{
+    auto *tabs = new QTabWidget;
+
+    auto *table = new QTableWidget;
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels({QStringLiteral("Block"), QStringLiteral("Text"),
+                                      QStringLiteral("Bytes")});
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setFont(QFont(QStringLiteral("Courier New"), 9));
+    table->setRowCount(dax.blocks().size());
+    for (int row = 0; row < dax.blocks().size(); ++row) {
+        const DaxFileBlock &block = dax.blocks().at(row);
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(block.id)));
+        table->setItem(row, 1, new QTableWidgetItem(blockText(block.data)));
+        table->setItem(row, 2, new QTableWidgetItem(QString::number(block.data.size())));
+    }
+    table->resizeColumnsToContents();
+    tabs->addTab(table, QStringLiteral("Items"));
+
+    QString summary;
+    summary += QStringLiteral("Amiga item name table\n");
+    summary += QStringLiteral("Blocks: %1\n").arg(dax.blocks().size());
+    summary += QStringLiteral("Each block is decoded with ByteKiller and contains a\n");
+    summary += QStringLiteral("null-terminated item name.\n");
+    tabs->addTab(summaryView(summary), QStringLiteral("Summary"));
+    return tabs;
+}
+
+QWidget *amigaCharacterView(const DaxFile &dax)
+{
+    auto *table = new QTableWidget;
+    table->setColumnCount(10);
+    table->setHorizontalHeaderLabels({
+        QStringLiteral("Block"), QStringLiteral("Name"), QStringLiteral("0x10"),
+        QStringLiteral("0x11"), QStringLiteral("0x12"), QStringLiteral("0x13"),
+        QStringLiteral("0x14"), QStringLiteral("0x15"), QStringLiteral("Size"),
+        QStringLiteral("First bytes")
+    });
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setFont(QFont(QStringLiteral("Courier New"), 9));
+    table->setRowCount(dax.blocks().size());
+    for (int row = 0; row < dax.blocks().size(); ++row) {
+        const DaxFileBlock &block = dax.blocks().at(row);
+        const QByteArray &data = block.data;
+        int end = data.indexOf('\0');
+        if (end < 0)
+            end = qMin(16, data.size());
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(block.id)));
+        table->setItem(row, 1, new QTableWidgetItem(QString::fromLatin1(data.left(end))));
+        for (int i = 0; i < 6; ++i) {
+            table->setItem(row, 2 + i, new QTableWidgetItem(
+                QString::number(byteAt(data, 0x10 + i))));
+        }
+        table->setItem(row, 8, new QTableWidgetItem(QString::number(data.size())));
+        table->setItem(row, 9, new QTableWidgetItem(QString::fromLatin1(data.left(24).toHex(' '))));
+    }
+    table->resizeColumnsToContents();
+    return table;
+}
+
+} // namespace
+
 bool DaxRecordPlugin::isSatisfiedBy(const QString &path) const
 {
     const QFileInfo info(path);
@@ -242,6 +325,16 @@ bool DaxRecordPlugin::isSatisfiedBy(const QString &path) const
 
 QWidget *DaxRecordPlugin::createViewer(const PluginParameters &parameters)
 {
+    const QFileInfo info(parameters.filename);
+    const QString name = info.fileName().toUpper();
+    DaxFile dax(parameters.filename);
+    if (dax.isValid() && dax.isAmiga()) {
+        if (name.contains(QStringLiteral("ITEM")) || name.contains(QStringLiteral("ITM")))
+            return amigaItemView(dax);
+        if (name.contains(QStringLiteral("CHA")))
+            return amigaCharacterView(dax);
+    }
+
     CharacterDocument document;
     QString error;
     if (!loadCharacterDocument(parameters.filename, document, &error)) {

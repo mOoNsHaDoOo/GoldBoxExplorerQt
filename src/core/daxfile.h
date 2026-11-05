@@ -20,6 +20,7 @@ public:
 
     bool load(const QString &path);
     bool isValid() const { return m_valid; }
+    bool isAmiga() const { return m_amiga; }
     QString fileName() const { return m_fileName; }
     QString errorString() const { return m_error; }
 
@@ -36,4 +37,5 @@ private:
     QString m_error;
     QVector<DaxFileBlock> m_blocks;
     bool m_valid = false;
+    bool m_amiga = false;
 };

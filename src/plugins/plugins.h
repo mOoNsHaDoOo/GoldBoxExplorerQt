@@ -231,6 +231,14 @@ public:
     QWidget *createViewer(const PluginParameters &parameters) override;
 };
 
+// Amiga .font metadata (poolrad.font, protect.font, ...).
+class FontPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
 // Preview for Gold Box .DAA/.DAI files. The format is container-like, so the
 // plugin tries IFF (ILBM/PBM/8SVX/ANIM) and DAX content before falling back to
 // a structural summary and hex view.

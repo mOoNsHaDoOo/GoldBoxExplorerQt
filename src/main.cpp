@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "core/daxfile.h"
 #include "parse/audio.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -18,7 +19,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.40"));
+    QApplication::setApplicationVersion(QStringLiteral("0.41"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -32,6 +33,13 @@ int main(int argc, char *argv[])
     // layer can decode without opening a window.
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--probe")) {
         const QString path = QString::fromLocal8Bit(argv[2]);
+        if (path.endsWith(QStringLiteral(".dax"), Qt::CaseInsensitive)
+            || path.endsWith(QStringLiteral(".DAX"), Qt::CaseInsensitive)) {
+            DaxFile probeDax(path);
+            qInfo().noquote() << "DAX valid:" << probeDax.isValid()
+                              << "amiga:" << probeDax.isAmiga()
+                              << "blocks:" << probeDax.blocks().size();
+        }
         auto plugin = PluginFactory::create(path);
         if (!plugin) {
             qWarning() << "no plugin for" << path;

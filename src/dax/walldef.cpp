@@ -2,7 +2,6 @@
 
 #include "core/byteutils.h"
 #include "dax/daximagefile.h"
-#include "dax/renderblocks.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -180,18 +179,13 @@ int DaxWallDefFile::bitmapCount(int blockId, const QString &fileName)
     if (!QFileInfo::exists(resolved))
         return 0;
 
-    DaxFile file(resolved);
-    if (!file.isValid())
-        return 0;
-
-    for (const DaxFileBlock &block : file.blocks()) {
-        if (block.id != blockId)
-            continue;
-        FileBlockParameters parameters{block.data, block.file, block.id};
-        auto render = RenderBlockFactory::create(parameters);
-        return render->getBitmaps().size();
+    DaxImageFile file(resolved);
+    int count = 0;
+    for (int id : file.bitmapIds()) {
+        if (id == blockId)
+            ++count;
     }
-    return 0;
+    return count;
 }
 
 void DaxWallDefFile::loadBitmaps(int blockId, const QString &fileName, QVector<QImage> &target)
@@ -200,15 +194,9 @@ void DaxWallDefFile::loadBitmaps(int blockId, const QString &fileName, QVector<Q
     if (!QFileInfo::exists(resolved))
         return;
 
-    DaxFile file(resolved);
-    if (!file.isValid())
-        return;
-
-    for (const DaxFileBlock &block : file.blocks()) {
-        if (block.id != blockId)
-            continue;
-        FileBlockParameters parameters{block.data, block.file, block.id};
-        auto render = RenderBlockFactory::create(parameters);
-        target += render->getBitmaps();
+    DaxImageFile file(resolved);
+    for (int i = 0; i < file.bitmaps().size(); ++i) {
+        if (file.bitmapIds().value(i, -1) == blockId)
+            target.append(file.bitmaps().at(i));
     }
 }

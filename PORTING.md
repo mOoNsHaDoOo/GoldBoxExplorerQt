@@ -65,6 +65,7 @@ deliberate behaviour changes.
 | *(new)* Amiga IFF reader | `src/parse/iff.cpp` |
 | *(new)* 8SVX/16SV reader and WAV writer | `src/parse/audio.cpp` |
 | *(new)* Amiga DAA container and image decoder | `src/parse/daa.cpp` |
+| *(new)* Amiga DAX container and ByteKiller depacker | `src/core/daxfile.cpp` (Amiga branch) |
 
 ## Deliberate behaviour changes
 
@@ -100,6 +101,11 @@ deliberate behaviour changes.
   The port adds a generic IFF inspector that decodes `FORM INST` references
   (PTCH/VLUM/SAMP), resolves referenced samples in the same directory, and
   shows `FORM SMUS` scores and embedded sound banks.
+- **Amiga DAX.** The DOS and Amiga `.dax` formats share an extension but not
+  a layout. The port auto-detects the Amiga big-endian index and unpacks its
+  ByteKiller blocks, then renders the 9-byte-header 4-plane images. An
+  8-byte prefix before the image header is handled for `pic.dax`,
+  `sprit.dax`, and `final.dax`.
 - **DAA/IFF previews.** The original application has no Amiga asset support.
   The native DAA container is read with a big-endian index and the same SSI
   run-length decoder as DAX; image records use a 9-byte header, a 64-byte

@@ -358,3 +358,41 @@ QWidget *AmigaItemsPlugin::createViewer(const PluginParameters &parameters)
     tabs->addTab(textView(summary), QStringLiteral("Summary"));
     return tabs;
 }
+
+
+bool FontPlugin::isSatisfiedBy(const QString &path) const
+{
+    return QFileInfo(path).suffix().compare(QStringLiteral("font"), Qt::CaseInsensitive) == 0;
+}
+
+QWidget *FontPlugin::createViewer(const PluginParameters &parameters)
+{
+    QFile file(parameters.filename);
+    if (!file.open(QIODevice::ReadOnly))
+        return textView(QStringLiteral("Unable to open the font file."));
+    const QByteArray data = file.readAll();
+
+    QString text;
+    text += QStringLiteral("Amiga font: %1\n").arg(QFileInfo(parameters.filename).fileName());
+    text += QStringLiteral("Size: %1 bytes\n\n").arg(data.size());
+    if (data.size() >= 4) {
+        const int ySize = static_cast<quint8>(data.at(0))
+                          | (static_cast<quint8>(data.at(1)) << 8);
+        text += QStringLiteral("Y size: %1\n").arg(ySize);
+        text += QStringLiteral("Style: %1\n").arg(static_cast<quint8>(data.at(2)));
+        text += QStringLiteral("Flags: %1\n").arg(static_cast<quint8>(data.at(3)));
+    }
+    int nameEnd = data.indexOf('\0', 4);
+    if (nameEnd < 0)
+        nameEnd = qMin(32, data.size());
+    if (data.size() > 4)
+        text += QStringLiteral("Font name: %1\n").arg(
+            QString::fromLatin1(data.mid(4, nameEnd - 4)));
+    text += QStringLiteral("\nHeader bytes:\n");
+    text += QString::fromLatin1(data.left(64).toHex(' '));
+
+    auto *tabs = new QTabWidget;
+    tabs->addTab(textView(text), QStringLiteral("Summary"));
+    tabs->addTab(new HexView(data), QStringLiteral("Hex"));
+    return tabs;
+}
