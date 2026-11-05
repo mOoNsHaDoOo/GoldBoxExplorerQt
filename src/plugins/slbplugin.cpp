@@ -203,37 +203,36 @@ QWidget *makePianoRollTab(const QVector<SlbSong> &songs)
 
 QWidget *makeMusicTab(const QVector<SlbSong> &songs)
 {
-    auto *widget = new QWidget;
-    auto *layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(0, 0, 0, 0);
+    auto *tabs = new QTabWidget;
+    for (const SlbSong &song : songs) {
+        auto *page = new QWidget;
+        auto *layout = new QVBoxLayout(page);
+        layout->setContentsMargins(0, 0, 0, 0);
+        tabs->addTab(page, QStringLiteral("Song %1").arg(song.index + 1));
+    }
 
-    auto *combo = new QComboBox;
-    for (const SlbSong &song : songs)
-        combo->addItem(QStringLiteral("Song %1").arg(song.index + 1));
-    layout->addWidget(combo);
-
-    auto *host = new QWidget;
-    auto *hostLayout = new QVBoxLayout(host);
-    hostLayout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(host, 1);
-
-    auto update = [combo, hostLayout, songs]() {
-        while (QLayoutItem *item = hostLayout->takeAt(0)) {
-            if (QWidget *old = item->widget())
-                old->deleteLater();
-            delete item;
-        }
-        const int index = combo->currentIndex();
+    // Synthesize a song only when its sub-tab is opened; a full 60-second
+    // square-wave preview is several megabytes of PCM.  The AudioView is
+    // added inside the existing page so the tab labels never change.
+    auto load = [tabs, songs](int index) {
         if (index < 0 || index >= songs.size())
             return;
+        QWidget *page = tabs->widget(index);
+        if (!page || page->property("loaded").toBool())
+            return;
+        auto *layout = qobject_cast<QVBoxLayout *>(page->layout());
+        if (!layout)
+            return;
         const AudioSample sample = SlbFile::synthesize(songs.at(index));
-        if (sample.valid)
-            hostLayout->addWidget(new AudioView(sample));
+        if (!sample.valid)
+            return;
+        layout->addWidget(new AudioView(sample));
+        page->setProperty("loaded", true);
     };
-    QObject::connect(combo, &QComboBox::currentIndexChanged, host, update);
+    QObject::connect(tabs, &QTabWidget::currentChanged, tabs, load);
     if (!songs.isEmpty())
-        update();
-    return widget;
+        load(0);
+    return tabs;
 }
 
 } // namespace
@@ -307,6 +306,6 @@ QWidget *SlbPlugin::createViewer(const PluginParameters &parameters)
     if (raw.open(QIODevice::ReadOnly))
         tabs->addTab(new HexView(raw.readAll()), QStringLiteral("Hex"));
 
-    tabs->setCurrentIndex(1); // Songs is the most useful starting point.
+    tabs->setCurrentIndex(1);
     return tabs;
 }
