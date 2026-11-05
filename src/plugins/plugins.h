@@ -239,6 +239,13 @@ public:
     QWidget *createViewer(const PluginParameters &parameters) override;
 };
 
+class MxtxPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
 class FontPlugin : public Plugin
 {
 public:

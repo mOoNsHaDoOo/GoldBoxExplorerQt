@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.50.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.51.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,6 +35,7 @@ add_executable(gbexplorer
     src/parse/smus.cpp
     src/parse/glb.cpp
     src/parse/slb.cpp
+    src/parse/mxtx.cpp
 
     src/widgets/imagesheetview.cpp
     src/widgets/hexview.cpp
@@ -50,6 +51,7 @@ add_executable(gbexplorer
     src/plugins/contentplugins.cpp
     src/plugins/glbplugin.cpp
     src/plugins/slbplugin.cpp
+    src/plugins/mxtxplugin.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)

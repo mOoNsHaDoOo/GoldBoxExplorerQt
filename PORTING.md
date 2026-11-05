@@ -128,6 +128,11 @@ deliberate behaviour changes.
   detects the byte order from the header file size and decodes the Amiga
   planar methods 0 (4 planes) and 1 (5 planes) using the embedded colour
   table. DOS/little-endian TLB files keep the original drawing-method path.
+- **Music-X MXTX modules.** `SECRET.MX` is a Music-X song module: `MXTX`
+  header, six-byte sequence events (delta, note, velocity, duration), and a
+  waveform/envelope section. The port decodes the sequence, renders a piano
+  roll, plots the waveform section, and synthesizes a square-wave preview.
+  Applying the actual instrument waveforms is still open.
 - **Amiga SLB song banks.** `SECRET.SLB` and `CURSE.SLB` use the `SLBR`
   container: a header with loop offsets followed by two-byte music events.
   The port splits songs at `ff ff`, decodes note/rest/command events, renders

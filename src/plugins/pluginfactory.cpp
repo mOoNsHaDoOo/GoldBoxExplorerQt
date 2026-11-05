@@ -68,6 +68,8 @@ std::unique_ptr<Plugin> create(const QString &path)
         return std::make_unique<FontPlugin>();
     if (matches<SlbPlugin>(path))
         return std::make_unique<SlbPlugin>();
+    if (matches<MxtxPlugin>(path))
+        return std::make_unique<MxtxPlugin>();
     if (matches<ImagePlugin>(path))
         return std::make_unique<ImagePlugin>();
     if (matches<TextPlugin>(path))
