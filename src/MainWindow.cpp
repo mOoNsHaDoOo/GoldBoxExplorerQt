@@ -476,11 +476,12 @@ void MainWindow::showAbout()
     QMessageBox::about(
         this, QStringLiteral("About Gold Box Explorer"),
         QStringLiteral(
-            "<h3>Gold Box Explorer</h3>"
+            "<h3>Gold Box Explorer %1</h3>"
             "<p>A cross-platform Qt port of the Gold Box Explorer by Bil Simser.</p>"
             "<p>Viewer and exporter for SSI Gold Box game files: DAX, TLB, GEO, ECL, "
             "FRUA data files, and more.</p>"
-            "<p>Built with Qt %1.</p>").arg(QString::fromLatin1(qVersion())));
+            "<p>Built with Qt %2.</p>")
+            .arg(qApp->applicationVersion(), QString::fromLatin1(qVersion())));
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)

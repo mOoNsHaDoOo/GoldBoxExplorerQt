@@ -1,5 +1,6 @@
 #include "plugins/plugins.h"
 
+#include "core/byteutils.h"
 #include "core/daxfile.h"
 #include "dax/daximagefile.h"
 #include "parse/audio.h"
@@ -12,8 +13,10 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QStringList>
+#include <QHeaderView>
 #include <QPlainTextEdit>
 #include <QScrollArea>
+#include <QTableWidget>
 #include <QTabWidget>
 
 #include <utility>
@@ -73,12 +76,22 @@ QString describeDaa(const QByteArray &data, const DaaFile *daa = nullptr)
                     .arg(daa->blocks().size());
         text += QStringLiteral(" id   offset      raw    comp   decoded\n");
         for (const DaaBlock &block : daa->blocks()) {
-            text += QStringLiteral("%3  %8  %6  %6  %7\n")
-                        .arg(block.id)
-                        .arg(block.offset)
-                        .arg(block.rawSize)
-                        .arg(block.compressedSize)
-                        .arg(block.data.size());
+            QString header;
+            if (block.data.size() >= 9) {
+                const int h = (static_cast<quint8>(block.data.at(0)) << 8)
+                              | static_cast<quint8>(block.data.at(1));
+                const int w = (static_cast<quint8>(block.data.at(2)) << 8)
+                              | static_cast<quint8>(block.data.at(3));
+                header = QStringLiteral("  h=%1 w=%2 items=%3")
+                             .arg(h).arg(w).arg(byteAt(block.data, 8));
+            }
+            text += QStringLiteral("%1  %2  %3  %4  %5%6\n")
+                        .arg(block.id, 3)
+                        .arg(block.offset, 8)
+                        .arg(block.rawSize, 6)
+                        .arg(block.compressedSize, 6)
+                        .arg(block.data.size(), 7)
+                        .arg(header);
         }
         text += QLatin1Char('\n');
     }
@@ -175,6 +188,56 @@ QWidget *DaaPlugin::createViewer(const PluginParameters &parameters)
             m_sheet->setZoom(parameters.zoom);
             return scrollFor(m_sheet);
         }
+    }
+
+    // Alternate Amiga DAA layout used by pic*.daa / SPRIT*.DAA.
+    PicDaaFile picDaa(parameters.filename);
+    if (picDaa.isValid()) {
+        auto *tabs = new QTabWidget;
+
+        auto *table = new QTableWidget;
+        table->setColumnCount(9);
+        table->setHorizontalHeaderLabels({
+            QStringLiteral("#"), QStringLiteral("Bytes"), QStringLiteral("Offset"),
+            QStringLiteral("Height"), QStringLiteral("Width"), QStringLiteral("X"),
+            QStringLiteral("Y"), QStringLiteral("Frames"), QStringLiteral("Palette[0]")
+        });
+        table->verticalHeader()->setVisible(false);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        table->setFont(QFont(QStringLiteral("Courier New"), 9));
+        table->setRowCount(picDaa.records().size());
+        for (int i = 0; i < picDaa.records().size(); ++i) {
+            const PicDaaRecord &record = picDaa.records().at(i);
+            QString palette0;
+            if (record.decoded.size() >= 11) {
+                const int v = (static_cast<quint8>(record.decoded.at(9)) << 8)
+                              | static_cast<quint8>(record.decoded.at(10));
+                palette0 = QStringLiteral("%1").arg(v, 4, 16, QLatin1Char('0')).toUpper();
+            }
+            table->setItem(i, 0, new QTableWidgetItem(QString::number(record.index)));
+            table->setItem(i, 1, new QTableWidgetItem(QString::number(record.paddedSize)));
+            table->setItem(i, 2, new QTableWidgetItem(QString::number(record.offset)));
+            table->setItem(i, 3, new QTableWidgetItem(QString::number(record.height)));
+            table->setItem(i, 4, new QTableWidgetItem(QString::number(record.width)));
+            table->setItem(i, 5, new QTableWidgetItem(QString::number(record.x)));
+            table->setItem(i, 6, new QTableWidgetItem(QString::number(record.y)));
+            table->setItem(i, 7, new QTableWidgetItem(QString::number(record.frameCount)));
+            table->setItem(i, 8, new QTableWidgetItem(palette0));
+        }
+        table->resizeColumnsToContents();
+        tabs->addTab(table, QStringLiteral("Records"));
+
+        QString summary;
+        summary += QStringLiteral("Alternate Amiga DAA container\n");
+        summary += QStringLiteral("Data offset: %1\n").arg(picDaa.dataOffset());
+        summary += QStringLiteral("Records: %1\n\n").arg(picDaa.records().size());
+        summary += QStringLiteral("The records decode with the SSI RLE codec and begin with\n");
+        summary += QStringLiteral("a little-endian height/width/x/y/frame header followed\n");
+        summary += QStringLiteral("by a 64-byte Amiga palette. The pixel packing of these\n");
+        summary += QStringLiteral("particular banks is not yet identified.\n");
+        tabs->addTab(summaryView(summary), QStringLiteral("Summary"));
+        tabs->addTab(new HexView(data), QStringLiteral("Hex"));
+        return tabs;
     }
 
     // Amiga IFF audio hidden behind a .DAA/.DAI extension.

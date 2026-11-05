@@ -42,3 +42,37 @@ private:
 // fills imageIds with the corresponding DAA block id.
 QVector<QImage> decodeDaaImages(const DaaFile &file, QVector<int> *imageIds = nullptr,
                                 QString *error = nullptr);
+
+// Alternate Amiga DAA layout used by pic*.daa / SPRIT*.DAA: a 6-byte index
+// (u16 padded size, u32 offset) and the same RLE codec. The decoded block
+// starts with a little-endian image header (height, width, x, y, frame count)
+// followed by a 64-byte palette.
+struct PicDaaRecord
+{
+    int index = 0;
+    quint16 paddedSize = 0;
+    quint32 offset = 0;
+    QByteArray decoded;
+    int height = 0;
+    int width = 0;
+    int x = 0;
+    int y = 0;
+    int frameCount = 0;
+};
+
+class PicDaaFile
+{
+public:
+    explicit PicDaaFile(const QString &path) { load(path); }
+    bool load(const QString &path);
+    bool isValid() const { return m_valid; }
+    QString errorString() const { return m_error; }
+    const QVector<PicDaaRecord> &records() const { return m_records; }
+    quint16 dataOffset() const { return m_dataOffset; }
+
+private:
+    QString m_error;
+    quint16 m_dataOffset = 0;
+    QVector<PicDaaRecord> m_records;
+    bool m_valid = false;
+};

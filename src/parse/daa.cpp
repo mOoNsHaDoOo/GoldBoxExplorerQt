@@ -229,3 +229,78 @@ QVector<QImage> decodeDaaImages(const DaaFile &file, QVector<int> *imageIds, QSt
         *imageIds = ids;
     return images;
 }
+
+
+bool PicDaaFile::load(const QString &path)
+{
+    m_error.clear();
+    m_records.clear();
+    m_valid = false;
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        m_error = file.errorString();
+        return false;
+    }
+    const QByteArray bytes = file.readAll();
+    if (bytes.size() < 8) {
+        m_error = QStringLiteral("File is too small for the alternate DAA index.");
+        return false;
+    }
+
+    m_dataOffset = be16(bytes, 0);
+    if (m_dataOffset < 2 || m_dataOffset > bytes.size()
+        || (m_dataOffset - 2) % 6 != 0) {
+        m_error = QStringLiteral("Not an alternate DAA container.");
+        return false;
+    }
+
+    const int count = (m_dataOffset - 2) / 6;
+    if (count <= 0 || count > 4096) {
+        m_error = QStringLiteral("Invalid alternate DAA record count.");
+        return false;
+    }
+
+    const int payload = bytes.size() - m_dataOffset;
+    quint32 previousEnd = 0;
+    for (int i = 0; i < count; ++i) {
+        const int entry = 2 + i * 6;
+        PicDaaRecord record;
+        record.index = i;
+        record.paddedSize = be16(bytes, entry);
+        record.offset = be32(bytes, entry + 2);
+
+        const quint32 end = (i + 1 < count)
+                                ? be32(bytes, entry + 8)
+                                : static_cast<quint32>(payload);
+        if (record.offset < previousEnd || end < record.offset
+            || end > static_cast<quint32>(payload)) {
+            m_error = QStringLiteral("Alternate DAA offsets are not consecutive.");
+            m_records.clear();
+            return false;
+        }
+        previousEnd = end;
+
+        const QByteArray compressed = bytes.mid(m_dataOffset + record.offset,
+                                                end - record.offset);
+        record.decoded = DaxFile::decode(compressed, record.paddedSize);
+        if (record.decoded.size() < record.paddedSize)
+            record.decoded.resize(record.paddedSize);
+
+        if (record.decoded.size() >= 9) {
+            record.height = static_cast<quint8>(record.decoded.at(0))
+                            | (static_cast<quint8>(record.decoded.at(1)) << 8);
+            record.width = static_cast<quint8>(record.decoded.at(2))
+                           | (static_cast<quint8>(record.decoded.at(3)) << 8);
+            record.x = static_cast<quint8>(record.decoded.at(4))
+                       | (static_cast<quint8>(record.decoded.at(5)) << 8);
+            record.y = static_cast<quint8>(record.decoded.at(6))
+                       | (static_cast<quint8>(record.decoded.at(7)) << 8);
+            record.frameCount = byteAt(record.decoded, 8);
+        }
+        m_records.append(record);
+    }
+
+    m_valid = true;
+    return true;
+}
