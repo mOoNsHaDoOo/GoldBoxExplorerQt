@@ -89,7 +89,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_settings(QStringLiteral("GoldBoxExplorer"), QStringLiteral("GoldBoxExplorerQt"))
 {
-    setWindowTitle(QStringLiteral("Gold Box Explorer"));
+    setWindowTitle(QStringLiteral("Gold Box Explorer %1")
+                       .arg(qApp->applicationVersion()));
     resize(1000, 720);
     buildUi();
     buildMenus();
