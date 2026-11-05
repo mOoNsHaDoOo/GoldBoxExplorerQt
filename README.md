@@ -1,7 +1,6 @@
-<<<<<<< HEAD
 # Gold Box Explorer — Qt port
 
-A cross-platform C++17/Qt 6 port of [Gold Box Explorer](https://github.com/bsimser/Gold-Box-Explorer),
+A cross-platform C++17/Qt 6 port of [Gold Box Explorer](https://github.com/bsimser/Gold-Box-Explorer) done with DeepSeek Flash V4.1,
 the Windows/.NET file explorer for SSI's classic *Gold Box* role-playing games
 (Pool of Radiance, Curse of the Azure Bonds, Pools of Darkness, the Krynn
 games, Unlimited Adventures/FRUA, and the Buck Rogers games).
