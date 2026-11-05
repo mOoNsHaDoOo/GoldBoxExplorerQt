@@ -1,7 +1,11 @@
 MIT License
 
+<<<<<<< HEAD
 Copyright (c) 2018 Bil Simser
 Copyright (c) 2026 Gold Box Explorer Qt port contributors
+=======
+Copyright (c) 2026 Stefano Crosara
+>>>>>>> c3f3104ed124af511015f491cc95594afb3115c4
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

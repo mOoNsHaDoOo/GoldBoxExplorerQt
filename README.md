@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Gold Box Explorer — Qt port
 
 A cross-platform C++17/Qt 6 port of [Gold Box Explorer](https://github.com/bsimser/Gold-Box-Explorer),
@@ -165,3 +166,7 @@ original to this port and the behaviour differences.
 MIT. The original Gold Box Explorer is Copyright (c) 2018 Bil Simser; see
 [LICENSE](LICENSE). Game file formats and trademarked game names belong to
 their respective owners.
+=======
+# GoldBoxExplorerQt
+Portale version of GoldBoxExplorer converted in C++ and QT with DeepSeek Flash
+>>>>>>> c3f3104ed124af511015f491cc95594afb3115c4
