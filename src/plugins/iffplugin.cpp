@@ -2,6 +2,7 @@
 
 #include "parse/audio.h"
 #include "parse/iff.h"
+#include "parse/smus.h"
 #include "widgets/audioview.h"
 #include "widgets/hexview.h"
 #include "widgets/imagesheetview.h"
@@ -222,6 +223,40 @@ QWidget *IffPlugin::createViewer(const PluginParameters &parameters)
         summary = describeGeneric(form, info);
 
     tabs->addTab(makeSummary(summary), QStringLiteral("Summary"));
+
+    if (form.type == QByteArrayLiteral("SMUS")) {
+        SmusScore score;
+        if (loadSmus(data, score)) {
+            QString bankPath;
+            const QStringList entries = info.absoluteDir().entryList(
+                QDir::Files | QDir::NoDotAndDotDot);
+            for (const QString &entry : entries) {
+                if (entry.compare(QStringLiteral("soundData"), Qt::CaseInsensitive) == 0
+                    || entry.compare(QStringLiteral("sounddata"), Qt::CaseInsensitive) == 0) {
+                    bankPath = info.absoluteDir().filePath(entry);
+                    break;
+                }
+            }
+
+            SmusBank bank;
+            if (!bankPath.isEmpty()) {
+                QFile bankFile(bankPath);
+                if (bankFile.open(QIODevice::ReadOnly))
+                    loadSmusBank(bankFile.readAll(), bank);
+            }
+
+            const AudioSample music = synthesizeSmus(score, bank);
+            if (music.valid) {
+                auto *audio = new AudioView(music);
+                tabs->addTab(audio, QStringLiteral("Music"));
+            } else {
+                auto *note = makeSummary(QStringLiteral(
+                    "No playable instruments/samples were found for this SMUS score.\n"
+                    "Place the Amiga soundData bank next to the score."));
+                tabs->addTab(note, QStringLiteral("Music"));
+            }
+        }
+    }
 
     // For instrument definitions, resolve referenced sample names in the same
     // directory and expose any 8SVX sample as an audio tab.

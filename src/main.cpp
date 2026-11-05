@@ -2,11 +2,13 @@
 
 #include "core/daxfile.h"
 #include "parse/audio.h"
+#include "parse/smus.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
 
 #include <QApplication>
 #include <QDebug>
+#include <QDir>
 #include <QFile>
 #include <QStyleFactory>
 #include <QTimer>
@@ -19,7 +21,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.41"));
+    QApplication::setApplicationVersion(QStringLiteral("0.42"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -59,6 +61,46 @@ int main(int argc, char *argv[])
             qInfo().noquote() << "  " << i << bitmaps[i].width() << "x" << bitmaps[i].height();
         delete viewer;
         return bitmaps.isEmpty() ? 1 : 0;
+    }
+
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--smus")) {
+        QFile input(QString::fromLocal8Bit(argv[2]));
+        if (!input.open(QIODevice::ReadOnly))
+            return 2;
+        SmusScore score;
+        QString error;
+        if (!loadSmus(input.readAll(), score, &error)) {
+            qWarning().noquote() << error;
+            return 1;
+        }
+        const QFileInfo info(QString::fromLocal8Bit(argv[2]));
+        SmusBank bank;
+        const QStringList entries = info.absoluteDir().entryList(QDir::Files | QDir::NoDotAndDotDot);
+        for (const QString &entry : entries) {
+            if (entry.compare(QStringLiteral("soundData"), Qt::CaseInsensitive) == 0) {
+                QFile bankFile(info.absoluteDir().filePath(entry));
+                if (bankFile.open(QIODevice::ReadOnly))
+                    loadSmusBank(bankFile.readAll(), bank);
+                break;
+            }
+        }
+        const AudioSample music = synthesizeSmus(score, bank);
+        if (!music.valid) {
+            qWarning() << "SMUS synthesis failed";
+            return 1;
+        }
+        qInfo().noquote() << "SMUS:" << score.name << "tracks:" << score.tracks.size()
+                          << "tempo:" << score.tempo << "samples:" << bank.samples.size()
+                          << "instruments:" << bank.instrumentSamples.size()
+                          << "duration:" << music.durationMs() << "ms";
+        for (auto it = score.instrumentNames.cbegin(); it != score.instrumentNames.cend(); ++it) {
+            qInfo().noquote() << "  register" << it.key() << "=" << it.value()
+                              << "->" << bank.instrumentSamples.value(it.value().toLower());
+        }
+        QFile output(QStringLiteral("/tmp/gbexplorer_smus.wav"));
+        if (output.open(QIODevice::WriteOnly))
+            output.write(music.toWav());
+        return 0;
     }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--audio")) {

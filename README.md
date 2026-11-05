@@ -15,7 +15,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.41**.
+Current version: **0.42**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*
@@ -35,7 +35,7 @@ Linux and Windows.
 | Generic viewers | Text, PNG/JPEG/GIF/BMP/TGA/TIFF (as supported by Qt), and a fast hex viewer |
 | Amiga audio | 8SVX/16SV IFF audio with waveform preview, metadata, playback, and WAV export; extensionless sounds detected by content |
 | Amiga DAX | Big-endian index + ByteKiller depacker; 4-plane planar images, ECL, GEO, WALLDEF, item/monster data, and the `pic`/`sprit`/`final` prefix variant |
-| Amiga music/instruments | IFF inspector for `FORM INST` (e.g. `Sound/cast4`), `FORM SMUS` (`Sound/krynn`), embedded sound banks (`Sound/soundData`), and referenced sample playback |
+| Amiga music/instruments | IFF inspector for `FORM INST` (e.g. `Sound/cast4`), `FORM SMUS` (`Sound/krynn`) with sample-bank-driven playback, embedded sound banks (`Sound/soundData`), and referenced sample playback |
 | Save files | Amiga `CHRDATA*.sav` character records, `CHRDATA*.swg` equipment slots, `CHRDATA*.fx` effect records, and `SAVGAM*.DAT` summaries |
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
@@ -83,7 +83,11 @@ Linux and Windows.
   and, when the referenced sample exists in the same folder (for example
   `tuningFork` → `Sound/tuningfork`), adds an audio tab for it.
   `Sound/krynn` is decoded as `FORM SMUS` with score header, instruments, and
-  track size.
+  track size. A **Music** tab synthesizes the score: INS1 registers are
+  matched to the INST definitions in `Sound/soundData`, each INST resolves to
+  its 8SVX sample, and the TRAK notes are rendered through those samples at
+  the SMUS tempo. A 4-track score such as `krynn` produces about 87 seconds of
+  audio and can be played or exported as WAV.
 - **Sound banks.** `Sound/soundData` contains multiple nested IFF forms
   (5 × 8SVX plus INST/ENVL definitions); each sample gets its own audio tab
   and the definitions are listed in a summary.
@@ -220,6 +224,9 @@ The root folder is stored with `QSettings` under the `GoldBoxExplorer` /
   colours are an approximation of the Amiga palette.
 - Amiga hunk executables (`main`, `program`, `run`, `fastmemfirst`, `intro`,
   `poolrad/8`, `protect/8`) are deliberately left to the hex viewer.
+- SMUS playback is a wavetable preview, not a cycle-accurate Paula/Amiga
+  music-driver emulation. It follows the score tempo, notes, instruments, and
+  sample assignments, but does not emulate every hardware envelope/effect.
 - `MON*CHA.DAX` (Amiga character records, 409-byte blocks) uses the Pool of
   Radiance annotation layout as a best-effort viewer; the extra Amiga bytes
   are not annotated yet.
@@ -262,6 +269,14 @@ Audio parsing and WAV conversion can be checked without a window:
 QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
     --audio testdata/TEST.8SVX
 # writes /tmp/gbexplorer_audio.wav
+```
+
+SMUS playback can be rendered and inspected without the GUI:
+
+```sh
+QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
+    --smus "/path/to/Sound/krynn"
+# writes /tmp/gbexplorer_smus.wav
 ```
 
 Run the CTest suite:

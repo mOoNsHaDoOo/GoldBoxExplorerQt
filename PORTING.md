@@ -66,6 +66,7 @@ deliberate behaviour changes.
 | *(new)* 8SVX/16SV reader and WAV writer | `src/parse/audio.cpp` |
 | *(new)* Amiga DAA container and image decoder | `src/parse/daa.cpp` |
 | *(new)* Amiga DAX container and ByteKiller depacker | `src/core/daxfile.cpp` (Amiga branch) |
+| *(new)* SMUS parser, sound-bank resolver, wavetable synthesis | `src/parse/smus.cpp` |
 
 ## Deliberate behaviour changes
 
@@ -106,6 +107,11 @@ deliberate behaviour changes.
   ByteKiller blocks, then renders the 9-byte-header 4-plane images. An
   8-byte prefix before the image header is handled for `pic.dax`,
   `sprit.dax`, and `final.dax`.
+- **SMUS playback.** The port parses SHDR/INS1/TRAK, resolves INS1 register
+  names (for example `in1`) to INST forms in `soundData`, resolves their SAMP
+  chunks to 8SVX samples, and renders the note events through those samples
+  as a looping wavetable with attack/release envelopes. This is a practical
+  preview, not a Paula hardware emulation.
 - **DAA/IFF previews.** The original application has no Amiga asset support.
   The native DAA container is read with a big-endian index and the same SSI
   run-length decoder as DAX; image records use a 9-byte header, a 64-byte
