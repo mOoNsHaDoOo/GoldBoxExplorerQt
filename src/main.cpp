@@ -3,6 +3,7 @@
 #include "core/daxfile.h"
 #include "parse/audio.h"
 #include "parse/smus.h"
+#include "widgets/audioview.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
 
@@ -21,7 +22,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.42"));
+    QApplication::setApplicationVersion(QStringLiteral("0.43"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -61,6 +62,25 @@ int main(int argc, char *argv[])
             qInfo().noquote() << "  " << i << bitmaps[i].width() << "x" << bitmaps[i].height();
         delete viewer;
         return bitmaps.isEmpty() ? 1 : 0;
+    }
+
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--playtest")) {
+        QFile input(QString::fromLocal8Bit(argv[2]));
+        AudioSample sample;
+        QString error;
+        if (!input.open(QIODevice::ReadOnly)
+            || !load8svx(input.readAll(), sample, &error)) {
+            qWarning().noquote() << error;
+            return 1;
+        }
+        auto *view = new AudioView(sample);
+        view->show();
+        view->startPlaybackForTesting();
+        QTimer::singleShot(300, view, [view] {
+            delete view;
+            qApp->quit();
+        });
+        return app.exec();
     }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--smus")) {

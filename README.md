@@ -15,7 +15,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.42**.
+Current version: **0.43**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*

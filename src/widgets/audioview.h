@@ -3,6 +3,7 @@
 #include "parse/audio.h"
 
 #include <QWidget>
+#include <QPointer>
 
 class QLabel;
 class QProcess;
@@ -27,6 +28,8 @@ public:
     explicit AudioView(AudioSample sample, QWidget *parent = nullptr);
     ~AudioView() override;
 
+    void startPlaybackForTesting() { play(); }
+
 private:
     void play();
     void stop();
@@ -35,6 +38,6 @@ private:
 
     AudioSample m_sample;
     QLabel *m_status = nullptr;
-    QProcess *m_process = nullptr;
+    QPointer<QProcess> m_process;
     QString m_tempWav;
 };

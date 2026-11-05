@@ -170,13 +170,17 @@ void AudioView::play()
 
     m_process = new QProcess(this);
     connect(m_process, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {
-        m_status->setText(QStringLiteral("Playback finished."));
-        m_process->deleteLater();
-        m_process = nullptr;
+        if (m_status)
+            m_status->setText(QStringLiteral("Playback finished."));
+        if (m_process) {
+            m_process->deleteLater();
+            m_process = nullptr;
+        }
         cleanupTemp();
     });
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        m_status->setText(QStringLiteral("Could not start the audio player."));
+        if (m_status)
+            m_status->setText(QStringLiteral("Could not start the audio player."));
     });
     m_status->setText(QStringLiteral("Playing..."));
     m_process->start(program, arguments);
@@ -184,12 +188,14 @@ void AudioView::play()
 
 void AudioView::stop()
 {
-    if (!m_process)
-        return;
-    m_process->kill();
-    m_process->waitForFinished(1000);
-    m_process->deleteLater();
+    QProcess *process = m_process.data();
     m_process = nullptr;
+    if (!process)
+        return;
+
+    process->kill();
+    process->waitForFinished(1000);
+    process->deleteLater();
     if (m_status)
         m_status->setText(QStringLiteral("Stopped."));
     cleanupTemp();
