@@ -3,6 +3,7 @@
 #include "core/daxfile.h"
 #include "parse/audio.h"
 #include "parse/smus.h"
+#include "parse/slb.h"
 #include "widgets/audioview.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -22,7 +23,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.48"));
+    QApplication::setApplicationVersion(QStringLiteral("0.49"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -81,6 +82,35 @@ int main(int argc, char *argv[])
             qApp->quit();
         });
         return app.exec();
+    }
+
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--slb")) {
+        SlbFile file(QString::fromLocal8Bit(argv[2]));
+        if (!file.isValid()) {
+            qWarning().noquote() << file.errorString();
+            return 1;
+        }
+        qInfo().noquote() << "SLB songs:" << file.songs().size();
+        for (const SlbSong &song : file.songs()) {
+            const AudioSample sample = SlbFile::synthesize(song);
+            qInfo().noquote() << QStringLiteral("  song %1: 0x%2..0x%3 loop 0x%4 events %5 notes %6 units %7 duration %8 ms")
+                                     .arg(song.index + 1)
+                                     .arg(song.start, 4, 16, QLatin1Char('0'))
+                                     .arg(song.end, 4, 16, QLatin1Char('0'))
+                                     .arg(song.loopPoint, 4, 16, QLatin1Char('0'))
+                                     .arg(song.events.size())
+                                     .arg(song.noteCount)
+                                     .arg(song.totalUnits)
+                                     .arg(sample.durationMs());
+        }
+        if (!file.songs().isEmpty()) {
+            const AudioSample sample = SlbFile::synthesize(file.songs().first());
+            QFile output(QStringLiteral("/tmp/gbexplorer_slb.wav"));
+            if (output.open(QIODevice::WriteOnly))
+                output.write(sample.toWav());
+            qInfo().noquote() << "wrote /tmp/gbexplorer_slb.wav";
+        }
+        return 0;
     }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--smus")) {

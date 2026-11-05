@@ -66,6 +66,8 @@ std::unique_ptr<Plugin> create(const QString &path)
         return std::make_unique<AmigaItemsPlugin>();
     if (matches<FontPlugin>(path))
         return std::make_unique<FontPlugin>();
+    if (matches<SlbPlugin>(path))
+        return std::make_unique<SlbPlugin>();
     if (matches<ImagePlugin>(path))
         return std::make_unique<ImagePlugin>();
     if (matches<TextPlugin>(path))

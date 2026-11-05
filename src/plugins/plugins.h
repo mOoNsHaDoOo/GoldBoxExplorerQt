@@ -232,6 +232,13 @@ public:
 };
 
 // Amiga .font metadata (poolrad.font, protect.font, ...).
+class SlbPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
 class FontPlugin : public Plugin
 {
 public:

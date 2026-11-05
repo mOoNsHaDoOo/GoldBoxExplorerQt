@@ -128,6 +128,12 @@ deliberate behaviour changes.
   detects the byte order from the header file size and decodes the Amiga
   planar methods 0 (4 planes) and 1 (5 planes) using the embedded colour
   table. DOS/little-endian TLB files keep the original drawing-method path.
+- **Amiga SLB song banks.** `SECRET.SLB` and `CURSE.SLB` use the `SLBR`
+  container: a header with loop offsets followed by two-byte music events.
+  The port splits songs at `ff ff`, decodes note/rest/command events, renders
+  a piano roll, and synthesizes a square-wave preview. This is a practical
+  melody preview; the original Music-X sample instruments and effects are not
+  emulated.
 - **DKK**. The Death Knights of Krynn set uses the same Amiga DAX/DAA and SMUS
   readers. `MON1WIZ.DAX` is exposed as a decoded-block table; `PIC1.DAA`
   (alternate DAA index) and the multi-frame combat DAA files are structurally
