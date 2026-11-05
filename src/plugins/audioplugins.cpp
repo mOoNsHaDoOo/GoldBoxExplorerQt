@@ -16,6 +16,8 @@
 #include <QScrollArea>
 #include <QTabWidget>
 
+#include <utility>
+
 namespace {
 
 QWidget *scrollFor(QWidget *content)
@@ -58,12 +60,28 @@ QPlainTextEdit *summaryView(const QString &text)
     return view;
 }
 
-QString describeDaa(const QByteArray &data)
+QString describeDaa(const QByteArray &data, const DaaFile *daa = nullptr)
 {
     QString text;
     text += QStringLiteral("File size: %1 bytes\n").arg(data.size());
     text += QStringLiteral("Magic: %1\n\n")
                 .arg(QString::fromLatin1(data.left(16).toHex(' ').toUpper()));
+
+    if (daa && daa->isValid()) {
+        text += QStringLiteral("DAA container: data offset %1, %2 blocks\n\n")
+                    .arg(daa->dataOffset())
+                    .arg(daa->blocks().size());
+        text += QStringLiteral(" id   offset      raw    comp   decoded\n");
+        for (const DaaBlock &block : daa->blocks()) {
+            text += QStringLiteral("%3  %8  %6  %6  %7\n")
+                        .arg(block.id)
+                        .arg(block.offset)
+                        .arg(block.rawSize)
+                        .arg(block.compressedSize)
+                        .arg(block.data.size());
+        }
+        text += QLatin1Char('\n');
+    }
 
     IffForm form;
     if (readIffForm(data, form)) {
@@ -90,17 +108,12 @@ QString describeDaa(const QByteArray &data)
 
 bool AudioPlugin::isSatisfiedBy(const QString &path) const
 {
-    const QFileInfo info(path);
-    const QString suffix = info.suffix().toUpper();
-    if (suffix != QStringLiteral("8SVX") && suffix != QStringLiteral("SVX")
-        && suffix != QStringLiteral("16SV"))
-        return false;
-
+    // Amiga Gold Box sound files usually have no extension, so detect the
+    // IFF form instead of relying on the file name.
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return false;
-    const QByteArray header = file.read(12);
-    return looksLike8svx(header);
+    return looksLike8svx(file.read(12));
 }
 
 QWidget *AudioPlugin::createViewer(const PluginParameters &parameters)
@@ -129,6 +142,9 @@ QWidget *DaaPlugin::createViewer(const PluginParameters &parameters)
 {
     m_image = {};
     m_dax.reset();
+    m_daa.reset();
+    m_daaImages.clear();
+    m_daaIds.clear();
     m_sheet = nullptr;
     m_isImage = false;
     m_zoom = parameters.zoom;
@@ -138,6 +154,28 @@ QWidget *DaaPlugin::createViewer(const PluginParameters &parameters)
     if (!file.open(QIODevice::ReadOnly))
         return summaryView(QStringLiteral("Unable to open the file."));
     const QByteArray data = file.readAll();
+
+    // The Amiga DAA container used by the Gold Box ports.
+    DaaFile daa(parameters.filename);
+    if (daa.isValid()) {
+        QVector<int> ids;
+        QString error;
+        const QVector<QImage> images = decodeDaaImages(daa, &ids, &error);
+        if (!images.isEmpty()) {
+            m_daa = std::make_unique<DaaFile>(std::move(daa));
+            m_daaImages = images;
+            m_daaIds = ids;
+            m_isImage = true;
+            ImageSheetView::Options options;
+            const QString name = QFileInfo(parameters.filename).fileName().toUpper();
+            options.thirtyFivePerRow = name.contains(QStringLiteral("8X8D"));
+            options.displayBorder = name.contains(QStringLiteral("SPRIT"));
+            m_sheet = new ImageSheetView(images, ids, options);
+            m_sheet->setContainerWidth(parameters.containerWidth);
+            m_sheet->setZoom(parameters.zoom);
+            return scrollFor(m_sheet);
+        }
+    }
 
     // Amiga IFF audio hidden behind a .DAA/.DAI extension.
     if (looksLike8svx(data)) {
@@ -181,7 +219,8 @@ QWidget *DaaPlugin::createViewer(const PluginParameters &parameters)
     }
 
     auto *tabs = new QTabWidget;
-    tabs->addTab(summaryView(describeDaa(data)), QStringLiteral("Summary"));
+    tabs->addTab(summaryView(describeDaa(data, daa.isValid() ? &daa : nullptr)),
+                 QStringLiteral("Summary"));
     tabs->addTab(new HexView(data), QStringLiteral("Hex"));
     return tabs;
 }
@@ -202,6 +241,8 @@ void DaaPlugin::setContainerWidth(int width)
 
 QVector<QImage> DaaPlugin::getBitmaps()
 {
+    if (!m_daaImages.isEmpty())
+        return m_daaImages;
     if (m_dax)
         return m_dax->bitmaps();
     if (!m_image.isNull())
@@ -211,6 +252,8 @@ QVector<QImage> DaaPlugin::getBitmaps()
 
 QVector<int> DaaPlugin::getBitmapIds()
 {
+    if (!m_daaIds.isEmpty())
+        return m_daaIds;
     if (m_dax)
         return m_dax->bitmapIds();
     return {};

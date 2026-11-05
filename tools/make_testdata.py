@@ -212,9 +212,38 @@ def main() -> None:
     make_geo_files(OUT)
     make_ecl_file(OUT)
     make_amiga_files(OUT)
+    make_daa_container(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
+
+
+def make_daa_container(out: Path) -> None:
+    """A synthetic big-endian DAA image container (one 8x8 32-colour frame)."""
+    # 9-byte image header + 64-byte Amiga palette + 5 planes (rowBytes 2).
+    header = struct.pack(">HHHHB", 8, 1, 0, 0, 1)
+    palette = b"".join(struct.pack(">H", (i * 0x111) & 0x0FFF) for i in range(32))
+    rows = bytearray()
+    for plane in range(5):
+        for y in range(8):
+            rows += bytes([(plane * 31 + y * 17) & 0xFF, (plane * 7 + y * 3) & 0xFF])
+    raw = header + palette + bytes(rows)
+
+    # DAX/SSI run-length encoding, using literal runs (compression may be
+    # slightly larger than the raw block, which the format permits).
+    compressed = bytearray()
+    pos = 0
+    while pos < len(raw):
+        count = min(128, len(raw) - pos)
+        compressed.append(count - 1)
+        compressed += raw[pos:pos + count]
+        pos += count
+
+    data_offset = 2 + 9
+    entry = bytes([1]) + struct.pack(">IHH", 0, len(raw), len(compressed))
+    (out / "TESTDAA.DAA").write_bytes(
+        struct.pack(">H", data_offset) + entry + bytes(compressed)
+    )
 
 
 def make_amiga_files(out: Path) -> None:

@@ -60,6 +60,7 @@ deliberate behaviour changes.
 | `Plugins/DaxEcl/DaxEclFile.cs` string extraction | `src/parse/ecl.cpp` |
 | *(new)* Amiga IFF reader | `src/parse/iff.cpp` |
 | *(new)* 8SVX/16SV reader and WAV writer | `src/parse/audio.cpp` |
+| *(new)* Amiga DAA container and image decoder | `src/parse/daa.cpp` |
 
 ## Deliberate behaviour changes
 
@@ -87,11 +88,13 @@ deliberate behaviour changes.
 - **Vault viewer.** `FruaVaultPlugin` is commented out in the upstream plugin
   factory. The parser here is bounds-safe, so the port enables it.
 - **DAA/IFF previews.** The original application has no Amiga asset support.
-  `.DAA`/`.DAI` are treated as containers: the viewer first tries IFF
-  ILBM/PBM/ANIM and 8SVX, then a DAX image container, and finally falls back
-  to an IFF chunk/string summary plus hex. If a game uses a proprietary DAA
-  layout that is none of these, the summary is still available but no decoded
-  image is shown.
+  The native DAA container is read with a big-endian index and the same SSI
+  run-length decoder as DAX; image records use a 9-byte header, a 64-byte
+  Amiga 12-bit palette, and 5-plane planar data. 8×8D blocks are 4bpp tiles.
+  The viewer also tries IFF ILBM/PBM/ANIM and 8SVX, then a DAX image container,
+  and finally falls back to a chunk/string summary plus hex. Multi-frame
+  combat DAA files and the alternate `pic*.daa`/`SPRIT*.DAA` layouts are not
+  decoded yet and remain summary/hex only.
 - **Audio playback.** Qt Multimedia is not required. The port writes a
   temporary PCM WAV and plays it with the platform player (`afplay` on macOS,
   `aplay`/`paplay`/`ffplay` on Linux, PowerShell `SoundPlayer` on Windows).

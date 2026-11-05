@@ -4,6 +4,7 @@
 
 #include "dax/daximagefile.h"
 #include "dax/walldef.h"
+#include "parse/daa.h"
 #include "tbl/tlbfile.h"
 
 #include <QString>
@@ -189,6 +190,9 @@ public:
 private:
     QImage m_image;
     std::unique_ptr<DaxImageFile> m_dax;
+    std::unique_ptr<DaaFile> m_daa;
+    QVector<QImage> m_daaImages;
+    QVector<int> m_daaIds;
     ImageSheetView *m_sheet = nullptr;
     bool m_isImage = false;
     float m_zoom = 1.0f;

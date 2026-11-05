@@ -31,6 +31,7 @@ add_executable(gbexplorer
     src/parse/item_names.cpp
     src/parse/iff.cpp
     src/parse/audio.cpp
+    src/parse/daa.cpp
 
     src/widgets/imagesheetview.cpp
     src/widgets/hexview.cpp
@@ -72,7 +73,7 @@ include(CTest)
 if(BUILD_TESTING)
     # Synthetic files from tools/make_testdata.py. Each of these should decode
     # at least one image; --probe returns non-zero otherwise.
-    foreach(test_file PIC.DAX BIG.DAX SPRITES.DAX STRATA.DAX MIXED.DAX MIXEDVGA.DAX 8X8TEST.DAX IMAGES.TLB BIG.TLB TEST.DAA DAXIN.DAA TEST.ANIM TEST-LBM.IFF)
+    foreach(test_file PIC.DAX BIG.DAX SPRITES.DAX STRATA.DAX MIXED.DAX MIXEDVGA.DAX 8X8TEST.DAX IMAGES.TLB BIG.TLB TEST.DAA DAXIN.DAA TEST.ANIM TEST-LBM.IFF TESTDAA.DAA)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
             add_test(NAME probe_${test_file}
                      COMMAND gbexplorer --probe "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
