@@ -4,7 +4,7 @@ Because it's fun to do the must unuseful thing in the universe.
 
 Because i've always loved role-playing and CRPGs. 
 
-SSI games in particular are the ones i played in my childhood, and i still replay them once in a while, not only Goldbox marvels, but also Darksun: Shattered lands and Darksun: Wake of the ravager (you should really play them!).
+SSI games in particular are the ones i played in my childhood, and i still replay them once in a while (not only Goldbox marvels but also Darksun: Shattered lands and Darksun: Wake of the ravager [you should really play them!]).
 
 Aaaand, praise to the great Baldur's Gate 3 (thanks Larian!).
 
