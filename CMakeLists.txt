@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.52.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.53.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,6 +28,7 @@ add_executable(gbexplorer
     src/parse/geodax.cpp
     src/parse/geodax_names.cpp
     src/parse/ecl.cpp
+    src/parse/ecl_disasm.cpp
     src/parse/item_names.cpp
     src/parse/iff.cpp
     src/parse/audio.cpp

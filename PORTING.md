@@ -128,6 +128,12 @@ deliberate behaviour changes.
   detects the byte order from the header file size and decodes the Amiga
   planar methods 0 (4 planes) and 1 (5 planes) using the embedded colour
   table. DOS/little-endian TLB files keep the original drawing-method path.
+- **ECL disassembly.** The ECL viewer now has a per-block `Disassembly`
+  tab. The decoder follows `GOTO`/`GOSUB`/`ON GOTO`, decodes compressed
+  strings, labels map/player/area memory operands, and stops at
+  `EXIT`/`RETURN`. It is a static control-flow listing; the upstream
+  `EclDump` also simulates memory writes and annotates command-specific
+  effects, which is not reproduced instruction-for-instruction.
 - **Music-X MXTX modules.** `SECRET.MX` is a Music-X song module: `MXTX`
   header, six-byte sequence events (delta, note, velocity, duration), and a
   waveform/envelope section. The port decodes the sequence, renders a piano

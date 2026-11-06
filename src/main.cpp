@@ -5,6 +5,8 @@
 #include "parse/smus.h"
 #include "parse/slb.h"
 #include "parse/mxtx.h"
+#include "parse/ecl.h"
+#include "parse/ecl_disasm.h"
 #include "widgets/audioview.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -24,7 +26,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.52"));
+    QApplication::setApplicationVersion(QStringLiteral("0.53"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -83,6 +85,27 @@ int main(int argc, char *argv[])
             qApp->quit();
         });
         return app.exec();
+    }
+
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--ecl")) {
+        const QString path = QString::fromLocal8Bit(argv[2]);
+        EclFile file(path);
+        if (!file.isValid()) {
+            qWarning().noquote() << file.errorString();
+            return 1;
+        }
+        const bool pool = path.contains(QStringLiteral("pool"), Qt::CaseInsensitive);
+        for (const EclBlock &block : file.blocks()) {
+            const EclDisasmResult result = disassembleEclBlock(block.data, pool);
+            qInfo().noquote() << QStringLiteral("block %1: %2 instructions, %3 bytes")
+                                     .arg(block.id)
+                                     .arg(result.lines.size())
+                                     .arg(result.listing.size());
+            QFile output(QStringLiteral("/tmp/ecl_disasm_%1.txt").arg(block.id));
+            if (output.open(QIODevice::WriteOnly))
+                output.write(result.listing.toUtf8());
+        }
+        return 0;
     }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--mxtx")) {

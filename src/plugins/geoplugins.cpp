@@ -3,6 +3,7 @@
 #include "core/game.h"
 #include "parse/character.h"
 #include "parse/ecl.h"
+#include "parse/ecl_disasm.h"
 #include "parse/geo.h"
 #include "parse/geodax.h"
 #include "widgets/characterview.h"
@@ -224,12 +225,27 @@ QWidget *EclPlugin::createViewer(const PluginParameters &parameters)
     }
 
     auto *tabs = new QTabWidget;
+    const bool pool = parameters.filename.contains(QStringLiteral("pool"), Qt::CaseInsensitive)
+                      || parameters.filename.contains(QStringLiteral("poolrad"), Qt::CaseInsensitive);
     for (const EclBlock &block : file.blocks()) {
+        auto *blockTabs = new QTabWidget;
+
         auto *view = new QPlainTextEdit;
         QString text = QStringLiteral("Block %1 (%2 bytes)\n\n").arg(block.id).arg(block.data.size());
         text += block.strings.join(QLatin1Char('\n'));
         configureText(view, text);
-        tabs->addTab(view, QString::number(block.id));
+        blockTabs->addTab(view, QStringLiteral("Strings"));
+
+        const EclDisasmResult disasm = disassembleEclBlock(block.data, pool);
+        auto *disasmView = new QPlainTextEdit;
+        configureText(disasmView,
+                      disasm.valid ? disasm.listing
+                                   : QStringLiteral("Disassembly failed:\n%1")
+                                         .arg(disasm.error));
+        blockTabs->addTab(disasmView, QStringLiteral("Disassembly"));
+        blockTabs->setCurrentIndex(1);
+
+        tabs->addTab(blockTabs, QString::number(block.id));
     }
 
     auto *all = new QPlainTextEdit;

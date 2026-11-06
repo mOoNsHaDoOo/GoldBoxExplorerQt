@@ -15,7 +15,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.52**.
+Current version: **0.53**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -44,7 +44,7 @@ project is portable to Linux and Windows.
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
 | GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events |
-| ECL (.DAX) | Per-block extracted strings, combined ECL text, and raw hex |
+| ECL (.DAX) | Per-block extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex |
 
 ### Recent additions
 
@@ -156,10 +156,12 @@ project is portable to Linux and Windows.
 These are the only remaining differences from the original application. They
 were re-checked against the current source before this README update:
 
-- **ECL bytecode disassembler/decompiler.** The upstream `EclDump`
-  (`Commands.cs`, `Program.cs`, `Memory.cs`, `Sys.cs`) is not ported. The
-  current ECL viewer exposes extracted strings, combined text, and raw hex,
-  not decoded instructions.
+- **ECL disassembly.** The port decodes the ECL VM command table, follows
+  GOTO/GOSUB/ON GOTO targets, resolves compressed strings, and labels memory
+  operands (map position/direction, player/area fields, ECL bytes). The full
+  upstream `EclDump` VM simulation (with its detailed per-command memory
+  effects and annotations) is not ported line-for-line; the listing is a
+  control-flow disassembly rather than an execution trace.
 - **GeoDAX first-person 3D view.** The current GeoDAX viewer is the 2D map
   renderer; the first-person view, movement, map navigation, and ECL
   cross-linking are still missing.
@@ -303,6 +305,14 @@ Audio parsing and WAV conversion can be checked without a window:
 QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
     --audio testdata/TEST.8SVX
 # writes /tmp/gbexplorer_audio.wav
+```
+
+ECL disassembly can be dumped without the GUI:
+
+```sh
+QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
+    --ecl "/path/to/ECL1.DAX"
+# writes /tmp/ecl_disasm_<block>.txt
 ```
 
 SMUS playback can be rendered and inspected without the GUI:
