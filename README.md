@@ -15,7 +15,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.54**.
+Current version: **0.55**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -156,12 +156,12 @@ project is portable to Linux and Windows.
 These are the only remaining differences from the original application. They
 were re-checked against the current source before this README update:
 
-- **ECL disassembly.** The port decodes the ECL VM command table, follows
-  GOTO/GOSUB/ON GOTO targets, resolves compressed strings, and labels memory
-  operands (map position/direction, player/area fields, ECL bytes). The full
-  upstream `EclDump` VM simulation (with its detailed per-command memory
-  effects and annotations) is not ported line-for-line; the listing is a
-  control-flow disassembly rather than an execution trace.
+- **ECL disassembly.** The ECL viewer now ports the upstream `EclDump`
+  command handlers: every command consumes its operands, formats the same
+  descriptions (menus, damage, treasure, encounter menu, table access,
+  surprise, etc.), applies the same memory read/write annotations
+  (`area1`/`area2`/player/map fields), resolves compressed strings, and
+  follows GOTO/GOSUB/ON GOTO with the original conditional-skip semantics.
 - **GEODAX first-person is approximate.** The view uses the original fixed
   near/mid/far wall layout and the `WALLDEF*.DAX` wall faces. The wallset
   mapping is inferred from `ECL*.DAX` `LOAD PIECES` commands; full ECL-driven

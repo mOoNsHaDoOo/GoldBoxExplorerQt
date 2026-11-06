@@ -139,11 +139,10 @@ deliberate behaviour changes.
   template image, supports a user-supplied template, and has an overlay mode
   that marks pixels shared with a second wallset.
 - **ECL disassembly.** The ECL viewer now has a per-block `Disassembly`
-  tab. The decoder follows `GOTO`/`GOSUB`/`ON GOTO`, decodes compressed
-  strings, labels map/player/area memory operands, and stops at
-  `EXIT`/`RETURN`. It is a static control-flow listing; the upstream
-  `EclDump` also simulates memory writes and annotates command-specific
-  effects, which is not reproduced instruction-for-instruction.
+  tab and ports the upstream `EclDump` command handlers and memory
+  annotations: menus, damage, treasure, encounter/parlay, table access,
+  memory writes, player/area/map labels, compressed strings, and
+  `GOTO`/`GOSUB`/`ON GOTO` with the conditional-skip semantics.
 - **Music-X MXTX modules.** `SECRET.MX` is a Music-X song module: `MXTX`
   header, six-byte sequence events (delta, note, velocity, duration), and a
   waveform/envelope section. The port decodes the sequence, renders a piano
@@ -187,8 +186,6 @@ and `GLIB` loaders were traced this way; Capstone is available in
 
 ## Remaining work
 
-The ECL disassembler is now implemented as a static control-flow listing.
-The remaining gap is the upstream `EclDump` VM simulation, which executes
-memory writes and annotates every command's game-state effect. The GeoDAX
-first-person view is also implemented; exact ECL cross-navigation and
-game-state synchronization remain approximate.
+The ECL disassembler now ports the upstream command handlers and memory
+annotations. The GeoDAX first-person view is implemented; exact ECL
+cross-navigation and game-state synchronization remain approximate.
