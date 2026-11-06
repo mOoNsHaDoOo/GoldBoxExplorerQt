@@ -50,20 +50,28 @@ int leftWall(const GeoWallRecord &wall, const QString &facing)
 } // namespace
 
 GeoFirstPersonView::GeoFirstPersonView(const GeoMapRecord &map,
-                                       const QVector<QImage> &wallSet,
+                                       const QVector<QVector<QImage>> &wallSets,
+                                       int eclBlockId,
+                                       const QVector<int> &eventTargets,
+                                       int eventBase,
                                        QWidget *parent)
     : QWidget(parent)
     , m_map(map)
-    , m_wallSet(wallSet)
+    , m_wallSets(wallSets)
+    , m_eclBlockId(eclBlockId)
+    , m_eventTargets(eventTargets)
+    , m_eventBase(eventBase)
 {
     // The DaxWallDef tiles use the original magenta transparency key.
-    for (QImage &wall : m_wallSet) {
-        wall = wall.convertToFormat(QImage::Format_ARGB32);
-        for (int y = 0; y < wall.height(); ++y) {
-            QRgb *line = reinterpret_cast<QRgb *>(wall.scanLine(y));
-            for (int x = 0; x < wall.width(); ++x) {
-                if (qRed(line[x]) >= 250 && qGreen(line[x]) < 120 && qBlue(line[x]) >= 250)
-                    line[x] = qRgba(0, 0, 0, 0);
+    for (QVector<QImage> &set : m_wallSets) {
+        for (QImage &wall : set) {
+            wall = wall.convertToFormat(QImage::Format_ARGB32);
+            for (int y = 0; y < wall.height(); ++y) {
+                QRgb *line = reinterpret_cast<QRgb *>(wall.scanLine(y));
+                for (int x = 0; x < wall.width(); ++x) {
+                    if (qRed(line[x]) >= 250 && qGreen(line[x]) < 120 && qBlue(line[x]) >= 250)
+                        line[x] = qRgba(0, 0, 0, 0);
+                }
             }
         }
     }
@@ -79,6 +87,21 @@ GeoFirstPersonView::GeoFirstPersonView(const GeoMapRecord &map,
     m_status = new QLabel;
     m_status->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_status);
+
+    auto *eventRow = new QHBoxLayout;
+    m_eventStatus = new QLabel;
+    m_eventStatus->setAlignment(Qt::AlignCenter);
+    m_eventButton = new QPushButton(QStringLiteral("Show ECL event"));
+    m_eventButton->setEnabled(false);
+    eventRow->addWidget(m_eventStatus, 1);
+    eventRow->addWidget(m_eventButton);
+    layout->addLayout(eventRow);
+    connect(m_eventButton, &QPushButton::clicked, this, [this]() {
+        const int event = mapAt(m_x, m_y).event & 127;
+        const int address = eventAddress(event);
+        if (m_eclBlockId >= 0 && address > 0)
+            emit showEclRequested(m_eclBlockId, address);
+    });
 
     auto *grid = new QGridLayout;
     auto addButton = [this, grid](const QString &text, int row, int column,
@@ -194,17 +217,48 @@ void GeoFirstPersonView::updateStatus()
                           .arg(m_x)
                           .arg(m_y)
                           .arg(names.value(m_facing, m_facing)));
+
+    const int event = mapAt(m_x, m_y).event & 127;
+    const int address = eventAddress(event);
+    if (event > 0) {
+        if (address > 0) {
+            m_eventStatus->setText(QStringLiteral("Event %1 -> ECL block %2, 0x%3")
+                                       .arg(event)
+                                       .arg(m_eclBlockId)
+                                       .arg(address, 4, 16, QLatin1Char('0')));
+            m_eventButton->setEnabled(m_eclBlockId >= 0);
+        } else {
+            m_eventStatus->setText(QStringLiteral("Event %1 (no ECL target)")
+                                       .arg(event));
+            m_eventButton->setEnabled(false);
+        }
+    } else {
+        m_eventStatus->setText(QStringLiteral("No event on this tile"));
+        m_eventButton->setEnabled(false);
+    }
 }
 
 QImage GeoFirstPersonView::wallImage(int wallType, int view) const
 {
-    if (m_wallSet.size() < 10)
-        return {};
-    const int wallTypes = m_wallSet.size() / 10;
-    if (wallType < 1 || wallType > wallTypes)
-        return {};
-    const int index = view + (wallType - 1) * 10;
-    return m_wallSet.value(index);
+    int remaining = wallType;
+    for (const QVector<QImage> &set : m_wallSets) {
+        if (set.size() < 10)
+            continue;
+        const int wallTypes = set.size() / 10;
+        if (remaining >= 1 && remaining <= wallTypes)
+            return set.value(view + (remaining - 1) * 10);
+        remaining -= wallTypes;
+    }
+    return {};
+}
+
+int GeoFirstPersonView::eventAddress(int event) const
+{
+    if (event <= 0 || m_eventTargets.isEmpty())
+        return 0;
+    const int index = qBound(0, event - 1 + m_eventBase,
+                             m_eventTargets.size() - 1);
+    return m_eventTargets.at(index);
 }
 
 GeoWallRecord GeoFirstPersonView::mapAt(int x, int y) const

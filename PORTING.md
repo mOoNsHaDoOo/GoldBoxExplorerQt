@@ -128,12 +128,16 @@ deliberate behaviour changes.
   detects the byte order from the header file size and decodes the Amiga
   planar methods 0 (4 planes) and 1 (5 planes) using the embedded colour
   table. DOS/little-endian TLB files keep the original drawing-method path.
-- **GEODAX first person.** The Qi port adds a `First Person` tab per GEODAX
-  file. It uses the original fixed near/mid/far wall composition and the
-  pre-rendered `WALLDEF*.DAX` wall faces, including movement, strafing, and
-  rotation. The wallset mapping is inferred from `ECL*.DAX` `LOAD PIECES`
-  commands and falls back to the map/block id; it is not a full ECL-driven
-  game-state simulation.
+- **GEODAX first person and ECL event navigation.** The `First Person` tab
+  uses the original fixed near/mid/far wall composition, all three
+  `LOAD PIECES` wall sets with the upstream fallback order, movement,
+  strafing, rotation, and a 2D map cursor synced with the player position.
+  The current tile's event is linked through the `LOAD FILES GEO <id>` block
+  and its `ON GOTO` event table. Among the ECL blocks that reference the
+  map, the viewer prefers the same block id and then an event table whose
+  count matches the map's highest event. `Show ECL event` opens that block
+  with the target address selected. This is still a static map/ECL link, not
+  a runtime game-state simulation.
 - **Wall template export.** `WALLDEF*.DAX` viewers have an
   `Export wall template...` dialog. It composites the ten wall views into a
   template image, supports a user-supplied template, and has an overlay mode

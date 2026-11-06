@@ -15,7 +15,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.55**.
+Current version: **0.56**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -43,7 +43,7 @@ project is portable to Linux and Windows.
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
-| GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with wallset textures, movement, strafing, rotation, and map selection |
+| GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with multi-wallset textures, movement, strafing, rotation, map cursor sync, and event→ECL navigation |
 | ECL (.DAX) | Per-block extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex |
 
 ### Recent additions
@@ -162,10 +162,14 @@ were re-checked against the current source before this README update:
   surprise, etc.), applies the same memory read/write annotations
   (`area1`/`area2`/player/map fields), resolves compressed strings, and
   follows GOTO/GOSUB/ON GOTO with the original conditional-skip semantics.
-- **GEODAX first-person is approximate.** The view uses the original fixed
-  near/mid/far wall layout and the `WALLDEF*.DAX` wall faces. The wallset
-  mapping is inferred from `ECL*.DAX` `LOAD PIECES` commands; full ECL-driven
-  event/state navigation is not simulated.
+- **GEODAX first-person event navigation is static.** The view now uses the
+  original fixed near/mid/far layout, all three `LOAD PIECES` wall sets with
+  the upstream fallback order, a synced 2D map cursor, and an
+  `Event N -> ECL block, address` panel. The ECL block is chosen among the
+  blocks that load the GEO, preferring the same block id and then an event
+  table whose count matches the map's highest event. `Show ECL event` opens
+  the linked block with the target subroutine selected. It is still a static
+  map/ECL link, not a runtime game-state simulation.
 
 
 Everything else in the original `src/Common` and `src/Explorer` projects has

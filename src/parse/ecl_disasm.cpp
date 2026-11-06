@@ -146,6 +146,7 @@ public:
             previousEnd = it.key() + m_lengths.value(it.key(), 1);
         }
 
+        result.eventTargets = m_eventTargets;
         result.valid = true;
         return result;
     }
@@ -770,6 +771,11 @@ private:
                 list.append(QStringLiteral("0x%1").arg(target.word, 4, 16, QLatin1Char('0')));
                 addAddress(target.word, QStringLiteral("OnGoto"));
             }
+            if (count > 4 && count >= m_eventTargets.size()) {
+                m_eventTargets.clear();
+                for (const Operand &target : targets)
+                    m_eventTargets.append(target.word);
+            }
             return QStringLiteral("%1 of [%2]").arg(value, list.join(QStringLiteral(", ")));
         }
         case 0x27: {
@@ -1030,6 +1036,7 @@ private:
     QQueue<int> m_todo;
     QStringList m_strings;
     bool m_skipNext = false;
+    QVector<int> m_eventTargets;
 };
 
 } // namespace

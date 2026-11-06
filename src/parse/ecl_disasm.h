@@ -17,6 +17,7 @@ struct EclDisasmResult
     QString error;
     QString listing;
     QVector<EclDisasmLine> lines;
+    QVector<int> eventTargets; // ON GOTO table with the largest event count
 };
 
 // Decodes one ECL block.  The block data starts with a two-byte header that

@@ -13,11 +13,13 @@
 
 #include <QFile>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QTextCursor>
 #include <QStackedWidget>
 #include <QScrollArea>
 #include <QTabWidget>
@@ -49,6 +51,14 @@ public:
     {
         m_zoom = qMax(0.1f, zoom);
         setFixedSize(qRound(fullSize * m_zoom), qRound(fullSize * m_zoom));
+        update();
+    }
+
+    void setCursor(int x, int y, const QString &facing)
+    {
+        m_cursorX = x;
+        m_cursorY = y;
+        m_facing = facing;
         update();
     }
 
@@ -119,6 +129,24 @@ protected:
                                  roomSize - wallThickness * 4, doorColors[westDoor]);
             }
         }
+
+        // Player cursor, matching the upstream red facing arrow.
+        const qreal cx = m_cursorX * roomSize + gutterSize + roomSize / 2.0;
+        const qreal cy = m_cursorY * roomSize + gutterSize + roomSize / 2.0;
+        painter.setPen(QPen(Qt::red, 2));
+        if (m_facing == QStringLiteral("n")) {
+            painter.drawLine(QPointF(cx - 5, cy), QPointF(cx, cy - 5));
+            painter.drawLine(QPointF(cx + 5, cy), QPointF(cx, cy - 5));
+        } else if (m_facing == QStringLiteral("s")) {
+            painter.drawLine(QPointF(cx - 5, cy), QPointF(cx, cy + 5));
+            painter.drawLine(QPointF(cx + 5, cy), QPointF(cx, cy + 5));
+        } else if (m_facing == QStringLiteral("w")) {
+            painter.drawLine(QPointF(cx, cy - 5), QPointF(cx - 5, cy));
+            painter.drawLine(QPointF(cx, cy + 5), QPointF(cx - 5, cy));
+        } else {
+            painter.drawLine(QPointF(cx, cy - 5), QPointF(cx + 5, cy));
+            painter.drawLine(QPointF(cx, cy + 5), QPointF(cx + 5, cy));
+        }
     }
 
 private:
@@ -130,6 +158,9 @@ private:
 
     GeoMapRecord m_map;
     float m_zoom = 1.0f;
+    int m_cursorX = 8;
+    int m_cursorY = 8;
+    QString m_facing = QStringLiteral("s");
 };
 
 QString findFileCaseInsensitive(const QDir &dir, const QString &name)
@@ -203,21 +234,97 @@ QHash<int, QVector<int>> loadWallSetMapping(const QString &geoPath)
     return result;
 }
 
-QVector<QImage> wallSetForMap(int mapId,
-                              const QHash<int, QVector<QImage>> &sets,
-                              const QHash<int, QVector<int>> &mapping)
+QVector<QVector<QImage>> wallSetsForMap(int mapId,
+                                        const QHash<int, QVector<QImage>> &sets,
+                                        const QHash<int, QVector<int>> &mapping)
 {
-    if (mapping.contains(mapId)) {
-        for (int id : mapping.value(mapId)) {
-            if (sets.contains(id))
-                return sets.value(id);
+    QVector<QVector<QImage>> result;
+    QVector<int> ids = mapping.value(mapId);
+    if (ids.isEmpty())
+        ids = {mapId};
+    for (int id : ids) {
+        if (id == 255 || id == 127)
+            id = mapId;
+        if (sets.contains(id))
+            result.append(sets.value(id));
+    }
+    if (result.isEmpty() && !sets.isEmpty())
+        result.append(sets.constBegin().value());
+    return result;
+}
+
+QString eclFileForGeo(const QString &geoPath)
+{
+    const QFileInfo info(geoPath);
+    const QDir dir = info.absoluteDir();
+    const QString base = info.completeBaseName();
+    const QString disk = base.size() > 3 ? base.mid(3) : QString();
+    const QString eclName = disk.isEmpty()
+                                ? QStringLiteral("ECL.DAX")
+                                : QStringLiteral("ECL%1.DAX").arg(disk);
+    return findFileCaseInsensitive(dir, eclName);
+}
+
+void loadEclInfo(const QString &geoPath,
+                 const QVector<GeoMapRecord> &maps,
+                 QHash<int, int> &mapToBlock,
+                 QHash<int, int> &mapEventBase,
+                 QHash<int, QVector<int>> &blockEvents,
+                 QHash<int, QString> &blockListings)
+{
+    const QString eclPath = eclFileForGeo(geoPath);
+    if (eclPath.isEmpty())
+        return;
+    EclFile ecl(eclPath);
+    if (!ecl.isValid())
+        return;
+    const bool pool = geoPath.contains(QStringLiteral("pool"), Qt::CaseInsensitive);
+    QHash<int, QVector<int>> referencedByEcl;
+    QHash<int, int> blockIdSet;
+    for (const EclBlock &block : ecl.blocks()) {
+        blockIdSet.insert(block.id, block.id);
+        for (int i = 0; i + 4 <= block.data.size(); ++i) {
+            if (static_cast<quint8>(block.data.at(i)) == 0x21
+                && static_cast<quint8>(block.data.at(i + 1)) == 0
+                && static_cast<quint8>(block.data.at(i + 3)) == 0) {
+                const int mapId = static_cast<quint8>(block.data.at(i + 2));
+                referencedByEcl[mapId].append(block.id);
+                break;
+            }
+        }
+        const EclDisasmResult disasm = disassembleEclBlock(block.data, pool);
+        blockEvents.insert(block.id, disasm.eventTargets);
+        blockListings.insert(block.id, disasm.listing);
+    }
+
+    for (const GeoMapRecord &map : maps) {
+        int highestEvent = 0;
+        for (const GeoWallRecord &wall : map.walls)
+            highestEvent = qMax(highestEvent, wall.event & 127);
+
+        int chosen = -1;
+        int eventBase = 0;
+        if (blockIdSet.contains(map.daxId))
+            chosen = map.daxId;
+        if (chosen < 0) {
+            for (int id : referencedByEcl.value(map.daxId)) {
+                const int count = blockEvents.value(id).size();
+                if (count > 0
+                    && (count == highestEvent || count == (highestEvent & 31)
+                        || count == highestEvent + 1)) {
+                    chosen = id;
+                    eventBase = count > highestEvent ? 1 : 0;
+                    break;
+                }
+            }
+        }
+        if (chosen < 0 && !referencedByEcl.value(map.daxId).isEmpty())
+            chosen = referencedByEcl.value(map.daxId).first();
+        if (chosen >= 0) {
+            mapToBlock.insert(map.daxId, chosen);
+            mapEventBase.insert(map.daxId, eventBase);
         }
     }
-    if (sets.contains(mapId))
-        return sets.value(mapId);
-    if (!sets.isEmpty())
-        return sets.constBegin().value();
-    return {};
 }
 
 } // namespace
@@ -241,14 +348,56 @@ public:
 
         const QHash<int, QVector<QImage>> wallSets = loadWallSets(path);
         const QHash<int, QVector<int>> mapping = loadWallSetMapping(path);
+        QHash<int, int> mapToBlock;
+        QHash<int, int> mapEventBase;
+        QHash<int, QVector<int>> blockEvents;
+        QHash<int, QString> blockListings;
+        loadEclInfo(path, file.maps(), mapToBlock, mapEventBase, blockEvents, blockListings);
+
+        auto showEcl = [this, blockListings](int blockId, int address) {
+            const QString listing = blockListings.value(blockId);
+            auto *dialog = new QDialog(this);
+            dialog->setWindowTitle(QStringLiteral("ECL block %1 - event at 0x%2")
+                                       .arg(blockId)
+                                       .arg(address, 4, 16, QLatin1Char('0')));
+            dialog->resize(900, 620);
+            auto *layout = new QVBoxLayout(dialog);
+            auto *view = new QPlainTextEdit(dialog);
+            view->setReadOnly(true);
+            view->setLineWrapMode(QPlainTextEdit::NoWrap);
+            view->setFont(QFont(QStringLiteral("Courier New"), 10));
+            view->setPlainText(listing);
+            layout->addWidget(view);
+            const QTextCursor cursor = view->document()->find(
+                QStringLiteral("0x%1").arg(address, 4, 16, QLatin1Char('0')));
+            if (!cursor.isNull()) {
+                view->setTextCursor(cursor);
+                view->centerCursor();
+            }
+            dialog->exec();
+            dialog->deleteLater();
+        };
 
         auto *fpPage = new QWidget;
         auto *fpLayout = new QVBoxLayout(fpPage);
         auto *combo = new QComboBox;
         auto *stack = new QStackedWidget;
-        for (const GeoMapRecord &map : file.maps()) {
+        const QVector<GeoMapRecord> &maps = file.maps();
+        for (int i = 0; i < maps.size(); ++i) {
+            const GeoMapRecord &map = maps.at(i);
             combo->addItem(map.name);
-            auto *fp = new GeoFirstPersonView(map, wallSetForMap(map.daxId, wallSets, mapping));
+            const int eclBlock = mapToBlock.value(map.daxId, -1);
+            auto *fp = new GeoFirstPersonView(
+                map, wallSetsForMap(map.daxId, wallSets, mapping),
+                eclBlock, blockEvents.value(eclBlock),
+                mapEventBase.value(map.daxId));
+            if (i < m_maps.size()) {
+                GeoMapWidget *mapWidget = m_maps.at(i);
+                QObject::connect(fp, &GeoFirstPersonView::positionChanged,
+                                 mapWidget, &GeoMapWidget::setCursor);
+            }
+            QObject::connect(fp, &GeoFirstPersonView::showEclRequested,
+                             fp, showEcl);
             stack->addWidget(fp);
         }
         QObject::connect(combo, &QComboBox::currentIndexChanged,
