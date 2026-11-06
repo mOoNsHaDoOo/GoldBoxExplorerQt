@@ -128,6 +128,16 @@ deliberate behaviour changes.
   detects the byte order from the header file size and decodes the Amiga
   planar methods 0 (4 planes) and 1 (5 planes) using the embedded colour
   table. DOS/little-endian TLB files keep the original drawing-method path.
+- **GEODAX first person.** The Qi port adds a `First Person` tab per GEODAX
+  file. It uses the original fixed near/mid/far wall composition and the
+  pre-rendered `WALLDEF*.DAX` wall faces, including movement, strafing, and
+  rotation. The wallset mapping is inferred from `ECL*.DAX` `LOAD PIECES`
+  commands and falls back to the map/block id; it is not a full ECL-driven
+  game-state simulation.
+- **Wall template export.** `WALLDEF*.DAX` viewers have an
+  `Export wall template...` dialog. It composites the ten wall views into a
+  template image, supports a user-supplied template, and has an overlay mode
+  that marks pixels shared with a second wallset.
 - **ECL disassembly.** The ECL viewer now has a per-block `Disassembly`
   tab. The decoder follows `GOTO`/`GOSUB`/`ON GOTO`, decodes compressed
   strings, labels map/player/area memory operands, and stops at
@@ -167,13 +177,18 @@ deliberate behaviour changes.
   The port avoids throwing for malformed files and shows inline messages or
   empty viewers instead.
 
+## Reverse-engineering notes
+
+For Amiga hunk executables, use Ghidra first. If a hunk cannot be
+decompiled (custom overlay, mixed code/data, or an unsupported hunk), fall
+back to a Capstone m68k big-endian disassembly. The Secret `MXTX`, `BIGPIC`,
+and `GLIB` loaders were traced this way; Capstone is available in
+`/tmp/capenv/bin/python` for one-off analysis.
+
 ## Remaining work
 
-The largest missing subsystem is the ECL disassembler. Upstream splits it
-across `DaxEcl/Commands.cs`, `Program.cs`, `Memory.cs`, and `Sys.cs`, and it
-produces the annotated per-instruction listing shown by `EclFileViewer`. A
-direct port is feasible with the existing `EclFile` block access, but is not
-part of this first Qt milestone.
-
-The GeoDAX 3D first-person renderer and its ECL cross-navigation are also
-left for a later pass; the 2D map and map naming are implemented.
+The ECL disassembler is now implemented as a static control-flow listing.
+The remaining gap is the upstream `EclDump` VM simulation, which executes
+memory writes and annotates every command's game-state effect. The GeoDAX
+first-person view is also implemented; exact ECL cross-navigation and
+game-state synchronization remain approximate.

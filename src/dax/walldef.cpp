@@ -7,6 +7,22 @@
 #include <QFileInfo>
 #include <QPainter>
 
+namespace {
+
+void applyTransparency(QImage &image)
+{
+    image = image.convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < image.height(); ++y) {
+        QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            if (qRed(line[x]) >= 250 && qGreen(line[x]) < 120 && qBlue(line[x]) >= 250)
+                line[x] = qRgba(0, 0, 0, 0);
+        }
+    }
+}
+
+} // namespace
+
 DaxWallDefFile::DaxWallDefFile(const QString &path)
     : m_file(path)
 {
@@ -71,6 +87,7 @@ QVector<QImage> DaxWallDefFile::assembleWallSet(const DaxFileBlock &block, const
             }
         }
         painter.end();
+        applyTransparency(wall);
         walls.append(wall);
     }
     return walls;

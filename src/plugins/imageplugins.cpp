@@ -6,12 +6,14 @@
 #include "tbl/tlbfile.h"
 #include "widgets/hexview.h"
 #include "widgets/imagesheetview.h"
+#include "widgets/walltemplateexportdialog.h"
 
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QStringDecoder>
 #include <QTabWidget>
@@ -186,7 +188,19 @@ QWidget *DaxWallDefPlugin::createViewer(const PluginParameters &parameters)
         sheet->setContainerWidth(parameters.containerWidth);
         sheet->setZoom(parameters.zoom);
         m_sheets.append(sheet);
-        tabs->addTab(makeScrollArea(sheet), QString::number(set.blockId));
+
+        auto *page = new QWidget;
+        auto *layout = new QVBoxLayout(page);
+        auto *exportButton = new QPushButton(QStringLiteral("Export wall template..."));
+        const QVector<QImage> walls = set.walls;
+        QObject::connect(exportButton, &QPushButton::clicked, page,
+                         [walls, page]() {
+                             WallTemplateExportDialog dialog(walls, page);
+                             dialog.exec();
+                         });
+        layout->addWidget(exportButton);
+        layout->addWidget(makeScrollArea(sheet), 1);
+        tabs->addTab(page, QString::number(set.blockId));
     }
 
     if (m_sheets.isEmpty())

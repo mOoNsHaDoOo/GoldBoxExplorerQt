@@ -7,6 +7,8 @@
 #include "parse/mxtx.h"
 #include "parse/ecl.h"
 #include "parse/ecl_disasm.h"
+#include "dax/walldef.h"
+#include "widgets/walltemplateexportdialog.h"
 #include "widgets/audioview.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -26,7 +28,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.53"));
+    QApplication::setApplicationVersion(QStringLiteral("0.54"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -85,6 +87,22 @@ int main(int argc, char *argv[])
             qApp->quit();
         });
         return app.exec();
+    }
+
+    if (argc >= 4 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--walltemplate")) {
+        DaxWallDefFile file(QString::fromLocal8Bit(argv[2]));
+        if (!file.isValid() || file.wallSets().isEmpty()) {
+            qWarning() << "Unable to read a wall set";
+            return 1;
+        }
+        WallTemplateExportDialog dialog(file.wallSets().first().walls);
+        const QString output = QString::fromLocal8Bit(argv[3]);
+        if (!dialog.templateImage().save(output)) {
+            qWarning() << "Unable to save" << output;
+            return 1;
+        }
+        qInfo().noquote() << "wrote" << output;
+        return 0;
     }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--ecl")) {

@@ -15,7 +15,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.53**.
+Current version: **0.54**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -29,7 +29,7 @@ project is portable to Linux and Windows.
 | Main window | Directory tree, sortable file list, zoom menu/toolbar, Ctrl+wheel zoom, status bar, remembered root folder |
 | Plugin framework | Same detection order and plugin-per-file design as the original |
 | DAX images | VGA, EGA, VGA sprites, EGA sprites, VGA strata, VGA mixed (planar and EGA), 8×8 monochrome, unknown blocks |
-| DAX wall sets | `WALLDEF*.DAX` assembly from `8x8d*.DAX`, including 8×8 tile loading and multi-wall-set layouts |
+| DAX wall sets | `WALLDEF*.DAX` assembly from `8x8d*.DAX`, including 8×8 tile loading and multi-wall-set layouts; magenta transparency; `Export wall template...` dialog with overlay-difference mode |
 | TLB graphics | TILE and master libraries, drawing methods 16/17/18/21/23, internal/external colour tables, CBODY/CPIC combat icons; big-endian Amiga GLIB libraries with 4-plane (method 0) and 5-plane (method 1) planar images |
 | GLB containers | Big/little-endian `GLIB` archives (`.GLB`): container summary, block table with per-block hex, block export, TEXT strings, DIG8 sample playback, ECL strings, item/monster/effect record tables |
 | Image export | PNG/BMP/JPEG through the file context menu, same naming scheme as the original exporter |
@@ -43,7 +43,7 @@ project is portable to Linux and Windows.
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
-| GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events |
+| GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with wallset textures, movement, strafing, rotation, and map selection |
 | ECL (.DAX) | Per-block extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex |
 
 ### Recent additions
@@ -162,12 +162,11 @@ were re-checked against the current source before this README update:
   upstream `EclDump` VM simulation (with its detailed per-command memory
   effects and annotations) is not ported line-for-line; the listing is a
   control-flow disassembly rather than an execution trace.
-- **GeoDAX first-person 3D view.** The current GeoDAX viewer is the 2D map
-  renderer; the first-person view, movement, map navigation, and ECL
-  cross-linking are still missing.
-- **“Export to Wall Template” form.** The specialised wall/overlay template
-  exporter is not ported. The generic PNG/BMP/JPEG image export does export
-  the decoded wall images.
+- **GEODAX first-person is approximate.** The view uses the original fixed
+  near/mid/far wall layout and the `WALLDEF*.DAX` wall faces. The wallset
+  mapping is inferred from `ECL*.DAX` `LOAD PIECES` commands; full ECL-driven
+  event/state navigation is not simulated.
+
 
 Everything else in the original `src/Common` and `src/Explorer` projects has
 a C++/Qt counterpart.
