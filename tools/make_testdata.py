@@ -216,6 +216,7 @@ def main() -> None:
     make_item_dax(OUT)
     make_iff_inst(OUT)
     make_glb_text(OUT)
+    make_amiga_glib(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -359,5 +360,116 @@ def make_amiga_files(out: Path) -> None:
     (out / "DAXIN.DAA").write_bytes((out / "PIC.DAX").read_bytes())
     (out / "UNKNOWN.DAA").write_bytes(bytes([0x44, 0x41, 0x41, 0x01]) + bytes(range(64)))
 
+def _amiga_tile_body(images: list[bytes]) -> bytes:
+    """TILE library body: pointer table followed by the image records."""
+    offsets = []
+    position = 16 + 4 * len(images)
+    for image in images:
+        offsets.append(position)
+        position += len(image)
+    return b"".join(struct.pack(">I", o) for o in offsets) + b"".join(images)
+
+
+def _glib_header(size: int, entries: int, method: int, table: int, content: bytes) -> bytes:
+    return b"GLIB" + struct.pack(">IHBB", size, entries, method, table) + content
+
+
+def _lz5_encode(data: bytes) -> bytes:
+    """Method 5 stream: literal runs of 1..15 bytes, one back reference
+    (distance 4, 8 bytes) when the data repeats, and the end token."""
+    out = bytearray()
+    i = 0
+    while i < len(data):
+        if i >= 4 and data[i:i + 8] == data[i - 4:i + 4] and i + 8 <= len(data):
+            out += bytes([3, 5])            # distance 3+1, length 5+3
+            i += 8
+            continue
+        run = data[i:i + 15]
+        out.append(0xD0 | len(run))
+        out += run
+        i += len(run)
+    out.append(0xE0)
+    return bytes(out)
+
+
+def _lzw_encode(data: bytes) -> bytes:
+    """Method 3 stream: MSB-first 10-bit LZW.  The decoder adds an entry one
+    code late, so the code added at the previous step is never used."""
+    table = {bytes([i]): i for i in range(256)}
+    next_code = 256
+    codes = []
+    w = b""
+    last_added = None
+    for byte in data:
+        wc = w + bytes([byte])
+        if wc in table and table[wc] != last_added:
+            w = wc
+            continue
+        codes.append(table[w])
+        last_added = None
+        if next_code < 0x400:
+            table[wc] = next_code
+            last_added = next_code
+            next_code += 1
+        w = bytes([byte])
+    codes.append(table[w])
+    bits = "".join(format(code, "010b") for code in codes)
+    bits += "0" * (-len(bits) % 8)
+    return bytes(int(bits[k:k + 8], 2) for k in range(0, len(bits), 8))
+
+
+def _compress_library(library: bytes, method: int) -> bytes:
+    body = library[16:]
+    assert len(body) <= 0x2000, "one output slice only"
+    stream = _lz5_encode(body) if method == 5 else _lzw_encode(body)
+    header = bytearray(library[:16])
+    header[10] = method
+    return bytes(header) + b"\0\0" + stream
+
+
+def make_amiga_glib(out: Path) -> None:
+    """An Amiga GLIB of GLIBs (Curse of the Azure Bonds and later): two
+    compressed TILE libraries with a palette, a ByteRun1 chunky image, a delta
+    frame and a masked image.  Every encoder here is the inverse of the reader
+    in src/parse/glib_codec.cpp and src/parse/amiga_tile.cpp."""
+    palette = bytes(c for i in range(16) for c in (i * 17, 255 - i * 17, (i * 40) % 256))
+    width_bytes, height = 2, 8
+    chunky = bytes(((2 * k + y) % 16) << 4 | ((2 * k + 1 + y) % 16)
+                   for y in range(height) for k in range(width_bytes * 4))
+    rows = b"".join(bytes([len(chunky[y * 8:(y + 1) * 8]) - 1]) + chunky[y * 8:(y + 1) * 8]
+                    for y in range(height))
+    image2 = struct.pack(">HhhBB", height, 0, 0, width_bytes, 2) + rows
+    # delta: on every row, copy one byte (0xFF) into column 1 of each plane
+    commands = b"".join(b"\x01\xc1\x00" for _ in range(height))
+    per_plane = height
+    delta = struct.pack(">HH", len(commands), per_plane) + commands + b"\xff" * (4 * per_plane)
+    image3 = struct.pack(">HhhBB", height, 0, 0, width_bytes, 3) + delta
+    image8 = struct.pack(">HhhBB", 0, 0, 0, 0, 8) + palette
+    body = _amiga_tile_body([image8, image2, image3])
+    tile_a = _glib_header(16 + len(body), 3, 0, 0, b"TILE") + body
+
+    plane = bytes([0x3C, 0x0F] * height)
+    mask = bytes([0xFF, 0x0F] * height)
+    image1 = struct.pack(">HhhBB", height, 0, 0, width_bytes, 1) + mask + plane * 4
+    body = _amiga_tile_body([image8, image1])
+    tile_b = _glib_header(16 + len(body), 2, 0, 0, b"TILE") + body
+
+    subs = [_compress_library(tile_a, 5), _compress_library(tile_b, 3)]
+    set_table = struct.pack(">H", 0)
+    offsets = []
+    position = 16 + 4 * (len(subs) + 1)
+    table_offset = position
+    position += len(set_table)
+    for sub in subs:
+        offsets.append(position)
+        position += len(sub)
+    data = _glib_header(position, len(subs) + 1, 0, 0, b"GLIB")
+    data += struct.pack(">I", table_offset) + b"".join(struct.pack(">I", o) for o in offsets)
+    data += set_table + b"".join(subs)
+    assert len(data) == position
+    (out / "AMIGA.TLB").write_bytes(data)
+
+
 if __name__ == "__main__":
     main()
+
