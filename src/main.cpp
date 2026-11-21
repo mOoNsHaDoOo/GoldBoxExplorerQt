@@ -7,6 +7,7 @@
 #include "parse/mxtx.h"
 #include "parse/ecl.h"
 #include "parse/ecl_disasm.h"
+#include "parse/ecl_basic.h"
 #include "dax/walldef.h"
 #include "widgets/walltemplateexportdialog.h"
 #include "widgets/audioview.h"
@@ -20,15 +21,66 @@
 #include <QStyleFactory>
 #include <QTimer>
 
+#include <cstdio>
+#include <cstring>
+
 #include <typeinfo>
+
+namespace {
+
+// --ecl-basic FILE [BLOCK]: prints the ECL Basic listing of every block (or
+// of one block) of a Champions of Krynn ECLn.DAX to stdout.  Runs before
+// QApplication so it needs no display.
+int printEclBasic(const QString &path, int onlyBlock)
+{
+    DaxFile file(path);
+    if (!file.isValid()) {
+        std::fprintf(stderr, "%s: %s\n", qPrintable(path), qPrintable(file.errorString()));
+        return 1;
+    }
+    const QString tag = eclBasicFileTag(path);
+    int failures = 0;
+    bool found = false;
+    for (const DaxFileBlock &block : file.blocks()) {
+        if (onlyBlock >= 0 && block.id != onlyBlock)
+            continue;
+        found = true;
+        const EclBasicResult result = eclBasicDisassembleBlock(block.data, tag, block.id);
+        if (!result.ok) {
+            std::fprintf(stderr, "%s block %d: not ECL Basic: %s\n", qPrintable(tag), block.id,
+                         qPrintable(result.error));
+            ++failures;
+            continue;
+        }
+        const QByteArray bytes = result.text.toLatin1();
+        std::fwrite(bytes.constData(), 1, static_cast<size_t>(bytes.size()), stdout);
+    }
+    if (!found) {
+        std::fprintf(stderr, "%s: no block %d\n", qPrintable(path), onlyBlock);
+        return 2;
+    }
+    return failures ? 1 : 0;
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
+    if (argc >= 3 && std::strcmp(argv[1], "--ecl-basic") == 0) {
+        bool ok = true;
+        const int block = argc >= 4 ? QString::fromLocal8Bit(argv[3]).toInt(&ok) : -1;
+        if (!ok) {
+            std::fprintf(stderr, "usage: %s --ecl-basic FILE [BLOCK]\n", argv[0]);
+            return 2;
+        }
+        return printEclBasic(QString::fromLocal8Bit(argv[1 + 1]), block);
+    }
+
     QApplication app(argc, argv);
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.56"));
+    QApplication::setApplicationVersion(QStringLiteral("0.57"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));

@@ -25,7 +25,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.56**.
+Current version: **0.57**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -54,10 +54,25 @@ project is portable to Linux and Windows.
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
 | GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with multi-wallset textures, movement, strafing, rotation, map cursor sync, and event→ECL navigation |
-| ECL (.DAX) | Per-block extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex |
+| ECL (.DAX) | Per-block **ECL Basic** listing for *Champions of Krynn* (Amiga) programs (labels, tables, named variables, search, label list, Ctrl+click jumps), extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex; `--ecl-basic` CLI |
 
 ### Recent additions
 
+- **ECL Basic (Champions of Krynn, Amiga).** Every block of `ecl1.dax` /
+  `ecl2.dax` now opens on an `ECL Basic` tab: the cleartext form of the
+  program, one command per line in execution order, labels only where
+  something jumps (`first:`, `loc_3:`, `sub_1:`), `table_N` byte tables for
+  `GET_TABLE`/`SET_TABLE`, named variables (`[party_x]`) from the campaign
+  symbol table, and decoded 6-bit strings. The view is read-only and
+  monospace, with syntax colours, a find bar (Ctrl+F, F3/Shift+F3), a list
+  of labels and tables, Ctrl+click on a label to jump to it, and variable
+  descriptions as tooltips. The output is a port of the campaign tool
+  `ecl_basic.py disasm` and is byte-identical to it on all 22 blocks of the
+  game. Blocks in another ECL dialect (the decoder fails: no header of five
+  `GOTO`s, unknown opcode, operand outside the program) get an
+  `ECL Basic (n/a)` tab that says so, and the `Disassembly` tab stays the
+  default. GLB containers with ECL data (`ECL.GLB`) get an `ECL Basic` tab
+  that tries every block the same way.
 - **8SVX/16SV audio viewer.** Parses the IFF `VHDR`, `BODY`, and `NAME`
   chunks, draws a waveform, shows sample rate/size/duration, plays the sample,
   and exports a standard PCM WAV.
@@ -328,6 +343,18 @@ QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
 # writes /tmp/ecl_disasm_<block>.txt
 ```
 
+The ECL Basic listing of a *Champions of Krynn* `ECLn.DAX` (every block, or
+one block) is printed to stdout; this mode needs no display:
+
+```sh
+./build/gbexplorer --ecl-basic "/path/to/ecl1.dax" 16
+```
+
+`tools/check_ecl_basic.py GBEXPLORER DAX_DIR GOLDEN_DIR` compares it with
+golden listings written by the campaign tool
+(`ecl_basic.py disasm ecl1.dax GOLDEN_DIR`, files `eclN_ID.ecl`) and reports
+`n/m identical`.
+
 SMUS playback can be rendered and inspected without the GUI:
 
 ```sh
@@ -358,10 +385,12 @@ src/
   core/                 ByteReader, DAX container reader, game detection
   dax/                  Palette, render blocks, image file, wall sets
   tbl/                  TLB reader and image decoding
-  parse/                Character/item/GEO/GEODAX/ECL parsers, IFF and 8SVX readers, name tables
-  widgets/              Image sheet, hex, character, and audio views
+  parse/                Character/item/GEO/GEODAX/ECL parsers (incl. ECL Basic), IFF and 8SVX readers, name tables
+  widgets/              Image sheet, hex, character, audio, and ECL Basic views
   plugins/              Plugin interface, factory, and concrete plugins
 tools/make_testdata.py  Synthetic file generator
+tools/gen_ecl_symbols.py  ECL Basic symbol table generator (symbols.json -> C++)
+tools/check_ecl_basic.py  ECL Basic golden-file check
 testdata/               Generated smoke-test files
 ```
 
