@@ -60,6 +60,7 @@ add_executable(gbexplorer
     src/plugins/mxtxplugin.cpp
     src/plugins/containerplugin.cpp
     src/plugins/krynnviews.cpp
+    src/plugins/amigaplugins.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)

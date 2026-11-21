@@ -1,4 +1,5 @@
 #include "plugins/plugins.h"
+#include "plugins/amigaplugins.h"
 #include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 
@@ -82,6 +83,8 @@ std::unique_ptr<Plugin> createForFile(const QString &path)
         return std::make_unique<SlbPlugin>();
     if (matches<MxtxPlugin>(path))
         return std::make_unique<MxtxPlugin>();
+    if (matches<AmigaSystemPlugin>(path))
+        return std::make_unique<AmigaSystemPlugin>();
     if (matches<ImagePlugin>(path))
         return std::make_unique<ImagePlugin>();
     if (matches<TextPlugin>(path))
