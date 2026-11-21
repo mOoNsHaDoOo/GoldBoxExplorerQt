@@ -215,6 +215,7 @@ def main() -> None:
     make_daa_container(OUT)
     make_item_dax(OUT)
     make_iff_inst(OUT)
+    make_glb_text(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -231,6 +232,26 @@ def make_iff_inst(out: Path) -> None:
     (out / "TESTINST.IFF").write_bytes(
         b"FORM" + struct.pack(">I", 4 + len(body)) + b"INST" + body
     )
+
+
+def make_glb_text(out: Path) -> None:
+    """A little-endian GLIB TEXT container with two string blocks (no id table).
+
+    Layout read by GlbFile: 16-byte header, u32 first-data offset at 16, then
+    the block offsets from byte 20 up to the first data byte.
+    """
+    blocks = [b"Welcome to the test library.\0", b"Second block of text.\0"]
+    first_data = 20 + 4 * len(blocks)
+    offsets = []
+    position = first_data
+    for block in blocks:
+        offsets.append(position)
+        position += len(block)
+    header = b"GLIB" + struct.pack("<IHBB", position, len(blocks) + 1, 0, 0) + b"TEXT"
+    data = header + struct.pack("<I", first_data)
+    data += b"".join(struct.pack("<I", o) for o in offsets) + b"".join(blocks)
+    assert len(data) == position
+    (out / "STRINGS.GLB").write_bytes(data)
 
 
 def make_item_dax(out: Path) -> None:

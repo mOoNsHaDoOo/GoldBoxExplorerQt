@@ -400,7 +400,7 @@ void Container::detectTypes()
             e.type = QStringLiteral("Wall definitions (%1 set(s))").arg(size / 780);
         } else if (name.startsWith(QStringLiteral("8X8"))) {
             e.type = QStringLiteral("8x8 tiles");
-        } else if (name.contains(QStringLiteral("ITM")) || name.startsWith(QStringLiteral("ITEM"))) {
+        } else if (name.contains(QStringLiteral("ITM")) || name.contains(QStringLiteral("ITEM"))) {
             e.type = size % 63 == 0 ? QStringLiteral("Item records (%1 x 63)").arg(size / 63)
                                     : QStringLiteral("Item data");
         } else if (name.contains(QStringLiteral("SPC"))) {

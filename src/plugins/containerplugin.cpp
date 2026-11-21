@@ -17,6 +17,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSplitter>
@@ -24,6 +25,8 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QVBoxLayout>
+
+#include <typeinfo>
 
 namespace {
 
@@ -222,6 +225,7 @@ void ContainerPlugin::showRow(int row)
     }
     m_entryPlugin.reset();
     m_entryImages.clear();
+    m_entryViewerName.clear();
 
     if (row <= 0) {
         if (m_wholeViewer)
@@ -292,8 +296,12 @@ QWidget *ContainerPlugin::createEntryViewer(int index)
                 parameters.zoom = m_zoom;
                 parameters.containerWidth = viewerWidth();
                 view = plugin->createViewer(parameters);
-                if (view)
+                if (view) {
+                    const Plugin &ref = *plugin;
+                    m_entryViewerName = QString::fromLatin1(typeid(ref).name())
+                                            .remove(QRegularExpression(QStringLiteral("^[0-9]+")));
                     m_entryPlugin = std::move(plugin);
+                }
             } else {
                 viewNote = QStringLiteral("No specific viewer for this block type: showing the hex dump.");
             }
@@ -305,6 +313,7 @@ QWidget *ContainerPlugin::createEntryViewer(int index)
         sheet->setZoom(m_zoom);
         sheet->setContainerWidth(viewerWidth());
         m_entrySheet = sheet;
+        m_entryViewerName = QStringLiteral("images");
         auto *scroll = new QScrollArea;
         scroll->setWidgetResizable(true);
         scroll->setAlignment(Qt::AlignLeft | Qt::AlignTop);

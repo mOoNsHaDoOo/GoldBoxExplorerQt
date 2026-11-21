@@ -39,6 +39,9 @@ public:
     const Container &container() const { return m_container; }
     // Selects a table row (0 = all blocks, n = entry n-1). Used by tests.
     void selectRow(int row);
+    // Class name of the plugin showing the selected block, "images" for
+    // pre-rendered images, empty for the hex-only fallback.
+    QString entryViewerName() const { return m_entryViewerName; }
 
 private:
     void showRow(int row);
@@ -59,6 +62,7 @@ private:
     QPointer<QWidget> m_right;
     QVBoxLayout *m_rightLayout = nullptr;
     QPointer<ImageSheetView> m_entrySheet;
+    QString m_entryViewerName;
     PluginParameters m_parameters;
     int m_currentRow = 0;
     float m_zoom = 1.0f;

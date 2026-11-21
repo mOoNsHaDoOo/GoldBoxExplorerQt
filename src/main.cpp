@@ -11,6 +11,7 @@
 #include "dax/walldef.h"
 #include "widgets/walltemplateexportdialog.h"
 #include "widgets/audioview.h"
+#include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
 
@@ -68,6 +69,31 @@ int main(int argc, char *argv[])
                                      .arg(e.decoded ? QString() : QStringLiteral(" [not decoded]"));
         }
         return 0;
+    }
+
+    // Opens one inner block of a container the way the block browser does
+    // and reports the plugin that shows it: --probe-block FILE ROW (ROW 1 =
+    // first block). Fails when the block falls back to the hex view only.
+    if (argc >= 4 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--probe-block")) {
+        const QString path = QString::fromLocal8Bit(argv[2]);
+        const int row = QString::fromLocal8Bit(argv[3]).toInt();
+        Container container;
+        if (!container.open(path) || row < 1 || row > container.entries().size()) {
+            qWarning().noquote() << "no block" << row << "in" << path;
+            return 2;
+        }
+        ContainerPlugin plugin(container);
+        PluginParameters parameters;
+        parameters.filename = path;
+        QWidget *viewer = plugin.createViewer(parameters);
+        plugin.selectRow(row);
+        const ContainerEntry &entry = container.entries().at(row - 1);
+        const QString viewerName = plugin.entryViewerName();
+        qInfo().noquote() << path << "block" << entry.id << entry.type
+                          << "viewer:" << (viewerName.isEmpty() ? QStringLiteral("hex") : viewerName)
+                          << "images:" << plugin.getBitmaps().size();
+        delete viewer;
+        return viewerName.isEmpty() ? 1 : 0;
     }
 
     // Small diagnostic mode used by the smoke tests: print what the plugin
