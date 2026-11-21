@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "ExportDialog.h"
+#include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
 
@@ -115,6 +116,15 @@ void MainWindow::openForTesting(const QString &path)
     const QFileInfo info(path);
     loadDirectory(info.absolutePath());
     loadFile(path);
+}
+
+bool MainWindow::selectContainerRowForTesting(int row)
+{
+    auto *container = dynamic_cast<ContainerPlugin *>(m_plugin.get());
+    if (!container)
+        return false;
+    container->selectRow(row);
+    return true;
 }
 
 void MainWindow::buildUi()

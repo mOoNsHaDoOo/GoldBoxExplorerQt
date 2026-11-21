@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "core/container.h"
 #include "core/daxfile.h"
 #include "parse/audio.h"
 #include "parse/smus.h"
@@ -35,6 +36,37 @@ int main(int argc, char *argv[])
 
     if (argc >= 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--version")) {
         qInfo().noquote() << QApplication::applicationVersion();
+        return 0;
+    }
+
+    // Lists the inner blocks of a multi-block file (DAX, DAA, GLB, TLB).
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--list")) {
+        const QString path = QString::fromLocal8Bit(argv[2]);
+        Container container;
+        if (!container.open(path)) {
+            qWarning().noquote() << path << "is not a recognised container";
+            return 1;
+        }
+        qInfo().noquote() << path;
+        qInfo().noquote() << "format:" << container.formatName();
+        qInfo().noquote() << container.summary();
+        qInfo().noquote() << QStringLiteral("%1 %2 %3 %4 %5  %6")
+                                 .arg(QStringLiteral("#"), 4)
+                                 .arg(QStringLiteral("id"), 5)
+                                 .arg(QStringLiteral("offset"), 8)
+                                 .arg(QStringLiteral("stored"), 7)
+                                 .arg(QStringLiteral("size"), 7)
+                                 .arg(QStringLiteral("type"));
+        for (const ContainerEntry &e : container.entries()) {
+            qInfo().noquote() << QStringLiteral("%1 %2 %3 %4 %5  %6%7")
+                                     .arg(e.index, 4)
+                                     .arg(e.id, 5)
+                                     .arg(e.offset < 0 ? QStringLiteral("-") : QString::number(e.offset), 8)
+                                     .arg(e.offset < 0 ? QStringLiteral("-") : QString::number(e.storedSize), 7)
+                                     .arg(e.offset < 0 ? QStringLiteral("-") : QString::number(e.data.size()), 7)
+                                     .arg(e.type)
+                                     .arg(e.decoded ? QString() : QStringLiteral(" [not decoded]"));
+        }
         return 0;
     }
 
@@ -243,6 +275,26 @@ int main(int argc, char *argv[])
 
     MainWindow window;
     window.show();
+
+    // Screenshot helper: --shot FILE ROW OUTPUT.png [WIDTH HEIGHT]
+    // opens FILE, selects ROW of the block browser (0 = all blocks) and
+    // saves a grab of the window.
+    if (argc >= 5 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--shot")) {
+        const QString path = QString::fromLocal8Bit(argv[2]);
+        const int row = QString::fromLocal8Bit(argv[3]).toInt();
+        const QString output = QString::fromLocal8Bit(argv[4]);
+        if (argc >= 7)
+            window.resize(QString::fromLocal8Bit(argv[5]).toInt(), QString::fromLocal8Bit(argv[6]).toInt());
+        QTimer::singleShot(200, &window, [&window, path, row] {
+            window.openForTesting(path);
+            if (row > 0 && !window.selectContainerRowForTesting(row))
+                qWarning() << "not a container:" << path;
+        });
+        QTimer::singleShot(1500, &window, [&window, output] {
+            window.grab().save(output);
+            qApp->quit();
+        });
+    }
 
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--smoke")) {
         const QString path = QString::fromLocal8Bit(argv[2]);

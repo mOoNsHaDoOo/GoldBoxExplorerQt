@@ -32,6 +32,10 @@ public:
     // SSI's run-length decoder. Public because the sprite renderer uses it.
     static QByteArray decode(const QByteArray &input, int outputSize);
 
+    // ByteKiller unpacker used by the Amiga DAX layout. Public so the
+    // container browser can decode a single block.
+    static bool unpackByteKiller(const QByteArray &block, int expectedSize, QByteArray &output);
+
 private:
     QString m_fileName;
     QString m_error;

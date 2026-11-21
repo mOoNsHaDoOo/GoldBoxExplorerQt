@@ -14,6 +14,7 @@ add_executable(gbexplorer
 
     src/core/daxfile.cpp
     src/core/game.cpp
+    src/core/container.cpp
 
     src/dax/palette.cpp
     src/dax/renderblocks.cpp
@@ -55,6 +56,7 @@ add_executable(gbexplorer
     src/plugins/glbplugin.cpp
     src/plugins/slbplugin.cpp
     src/plugins/mxtxplugin.cpp
+    src/plugins/containerplugin.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)
