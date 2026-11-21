@@ -42,7 +42,9 @@ deliberate behaviour changes.
 | *(new)* Amiga IFF/8SVX | `AudioPlugin`, `DaaPlugin` | `AudioView`, `ImageSheetView`, summary/hex tabs |
 | *(new)* IFF instruments/music | `IffPlugin`, `SoundBankPlugin` | summary + referenced audio tabs |
 | *(new)* Amiga save files | `SaveFilePlugin` | character/equipment/effect/save views |
-| *(new)* Amiga item table | `AmigaItemsPlugin` | byte-template table |
+| *(new)* Amiga item table | `AmigaItemsPlugin` | Krynn item type table |
+| *(new)* any multi-block file | `ContainerPlugin` (wraps the plugin above) | block table + per-block viewer |
+| *(new)* Workbench icons, hunk executables | `AmigaSystemPlugin` | icon images / hunk list |
 
 ### File-format code
 
@@ -192,6 +194,29 @@ deliberate behaviour changes.
 - **Error handling.** The original shows a custom unhandled-exception dialog.
   The port avoids throwing for malformed files and shows inline messages or
   empty viewers instead.
+
+## Container browser
+
+`PluginFactory::create()` first checks `Container::open()`
+(`src/core/container.*`), which reads DOS/Krynn DAX, Amiga ByteKiller DAX,
+Amiga DAA, DAA picture sequences, GLIB and TLB files while keeping each
+entry's id, offset, stored bytes and decoded bytes. A recognised file gets a
+`ContainerPlugin` (`src/plugins/containerplugin.*`) that owns the normal
+plugin (`PluginFactory::createForFile()`) for the "All blocks" row. For an
+inner block, `Container::singleEntryFile()` writes a one-entry container of
+the same format (original compressed bytes, rebuilt directory) under the same
+file name in a `QTemporaryDir` that mirrors the absolute folder and links the
+other files of the folder. The plugin chosen for that path shows the block,
+so file-name rules (`ECL*.DAX`, `GEO*.DAX`, `8X8*`...), game detection and
+companion-file lookups (WALLDEF/8X8D/ECL next to GEO) keep working without
+changes to the plugins. TLB entries have no single-entry form and show their
+decoded image.
+
+Krynn record layouts come from the readable C port of the Amiga executable:
+`tools/gen_krynn_fields.py` extracts the `ch+$`, `item+$`, `eff+$`, `A+$`,
+`B+$` field comments and the H004 name tables into
+`src/parse/krynn_fields.cpp`; `src/parse/krynn_records.*` converts the PC
+DAX records the way `Load_MonsterRecord` does.
 
 ## Reverse-engineering notes
 

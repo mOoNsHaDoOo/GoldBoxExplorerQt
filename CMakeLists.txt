@@ -14,6 +14,7 @@ add_executable(gbexplorer
 
     src/core/daxfile.cpp
     src/core/game.cpp
+    src/core/container.cpp
 
     src/dax/palette.cpp
     src/dax/renderblocks.cpp
@@ -39,6 +40,8 @@ add_executable(gbexplorer
     src/parse/glb.cpp
     src/parse/slb.cpp
     src/parse/mxtx.cpp
+    src/parse/krynn_fields.cpp
+    src/parse/krynn_records.cpp
 
     src/widgets/imagesheetview.cpp
     src/widgets/hexview.cpp
@@ -58,6 +61,9 @@ add_executable(gbexplorer
     src/plugins/glbplugin.cpp
     src/plugins/slbplugin.cpp
     src/plugins/mxtxplugin.cpp
+    src/plugins/containerplugin.cpp
+    src/plugins/krynnviews.cpp
+    src/plugins/amigaplugins.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)
@@ -112,6 +118,19 @@ if(BUILD_TESTING)
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              TIMEOUT 10)
     endif()
+
+    # Container browser: --list must recognise the multi-block files and
+    # --probe-block must find a specific viewer for one inner block.
+    foreach(test_file PIC.DAX ECL1.DAX GEO1.DAX TESTDAA.DAA TESTITEM.DAX STRINGS.GLB IMAGES.TLB)
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
+            add_test(NAME list_${test_file}
+                     COMMAND gbexplorer --list "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
+            add_test(NAME block_${test_file}
+                     COMMAND gbexplorer --probe-block "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}" 1)
+            set_tests_properties(list_${test_file} block_${test_file} PROPERTIES
+                                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        endif()
+    endforeach()
 
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")
         add_test(NAME audio_8svx

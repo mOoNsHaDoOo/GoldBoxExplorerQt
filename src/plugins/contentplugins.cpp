@@ -4,6 +4,8 @@
 #include "parse/character.h"
 #include "parse/character_tables.h"
 #include "parse/iff.h"
+#include "parse/krynn_records.h"
+#include "plugins/krynnviews.h"
 #include "widgets/audioview.h"
 #include "widgets/characterview.h"
 #include "widgets/hexview.h"
@@ -208,11 +210,40 @@ QWidget *SaveFilePlugin::createViewer(const PluginParameters &parameters)
     const QFileInfo info(parameters.filename);
     const QString suffix = info.suffix().toUpper();
 
+    // Champions of Krynn stores the in-memory records verbatim (save_character,
+    // H066): $1AA-byte character, $48-byte items, $0A-byte effects. Those
+    // views come first; the previous interpretation stays as a second tab.
+    QTabWidget *krynn = nullptr;
+    if (suffix == QStringLiteral("SAV") && data.size() == KrynnRecords::characterSize) {
+        krynn = new QTabWidget;
+        krynn->addTab(KrynnViews::characterFile(data), QStringLiteral("Krynn character"));
+    } else if (suffix == QStringLiteral("SWG") && !data.isEmpty()
+               && data.size() % KrynnRecords::itemSize == 0) {
+        krynn = new QTabWidget;
+        krynn->addTab(KrynnViews::itemFile(data), QStringLiteral("Krynn items"));
+    } else if (suffix == QStringLiteral("FX") && !data.isEmpty()
+               && data.size() % KrynnRecords::effectSize == 0) {
+        krynn = new QTabWidget;
+        krynn->addTab(KrynnViews::effectFile(data), QStringLiteral("Krynn effects"));
+    } else if (suffix == QStringLiteral("DAT") && data.size() == 0x1569) {
+        return KrynnViews::savedGame(data);
+    }
+    auto withKrynn = [krynn](QWidget *other, const QString &title) -> QWidget * {
+        if (!krynn)
+            return other;
+        krynn->addTab(other, title);
+        return krynn;
+    };
+
     if (suffix == QStringLiteral("SAV")) {
         CharacterDocument document;
         QString error;
         if (loadCharacterDocument(parameters.filename, document, &error))
-            return new CharacterView(document);
+            return withKrynn(new CharacterView(document), QStringLiteral("PoR layout"));
+        if (krynn) {
+            krynn->addTab(new HexView(data), QStringLiteral("Hex"));
+            return krynn;
+        }
     }
 
     if (suffix == QStringLiteral("SWG")) {
@@ -232,7 +263,7 @@ QWidget *SaveFilePlugin::createViewer(const PluginParameters &parameters)
             table->setItem(i, 2, new QTableWidgetItem(QString::fromLatin1(record.toHex(' '))));
         }
         table->resizeColumnsToContents();
-        return table;
+        return withKrynn(table, QStringLiteral("Slots"));
     }
 
     if (suffix == QStringLiteral("FX")) {
@@ -259,7 +290,7 @@ QWidget *SaveFilePlugin::createViewer(const PluginParameters &parameters)
             table->setItem(i, 4, new QTableWidgetItem(QString::fromLatin1(record.toHex(' '))));
         }
         table->resizeColumnsToContents();
-        return table;
+        return withKrynn(table, QStringLiteral("Effect codes"));
     }
 
     auto *tabs = new QTabWidget;
@@ -317,48 +348,9 @@ QWidget *AmigaItemsPlugin::createViewer(const PluginParameters &parameters)
     QFile file(parameters.filename);
     if (!file.open(QIODevice::ReadOnly))
         return textView(QStringLiteral("Unable to open the items table."));
-    const QByteArray data = file.readAll();
-
-    auto *tabs = new QTabWidget;
-    auto *table = new QTableWidget;
-    table->setColumnCount(10);
-    table->setHorizontalHeaderLabels({
-        QStringLiteral("Item"), QStringLiteral("0"), QStringLiteral("1"),
-        QStringLiteral("2"), QStringLiteral("3"), QStringLiteral("4"),
-        QStringLiteral("5"), QStringLiteral("6"), QStringLiteral("7"),
-        QStringLiteral("Raw")
-    });
-    table->verticalHeader()->setVisible(false);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setFont(QFont(QStringLiteral("Courier New"), 9));
-
-    const int header = 2;
-    const int recordSize = 8;
-    const int count = qMax(0, (data.size() - header) / recordSize);
-    table->setRowCount(count);
-    for (int i = 0; i < count; ++i) {
-        const QByteArray record = data.mid(header + i * recordSize, recordSize);
-        table->setItem(i, 0, new QTableWidgetItem(QString::number(i)));
-        for (int b = 0; b < recordSize; ++b) {
-            table->setItem(i, b + 1, new QTableWidgetItem(
-                QString::number(static_cast<quint8>(record.at(b)))));
-        }
-        table->setItem(i, 9, new QTableWidgetItem(QString::fromLatin1(record.toHex(' '))));
-    }
-    table->resizeColumnsToContents();
-    tabs->addTab(table, QStringLiteral("Records"));
-
-    QString summary;
-    summary += QStringLiteral("Amiga items table\n");
-    summary += QStringLiteral("Size: %1 bytes\n").arg(data.size());
-    summary += QStringLiteral("Recovered %1 eight-byte templates after a 2-byte header.\n\n").arg(count);
-    summary += QStringLiteral("The exact template field names are not documented in the\n");
-    summary += QStringLiteral("original Gold Box Explorer; the byte columns preserve the\n");
-    summary += QStringLiteral("values for comparison with ITEM*.DAX records.\n");
-    tabs->addTab(textView(summary), QStringLiteral("Summary"));
-    return tabs;
+    // Layout from load_items_table (H006) in the readable CoK port.
+    return KrynnViews::itemTypeTable(file.readAll());
 }
-
 
 bool FontPlugin::isSatisfiedBy(const QString &path) const
 {

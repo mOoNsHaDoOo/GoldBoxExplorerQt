@@ -267,6 +267,11 @@ bool DaxFile::load(const QString &path)
     return true;
 }
 
+bool DaxFile::unpackByteKiller(const QByteArray &block, int expectedSize, QByteArray &output)
+{
+    return byteKillerUnpack(block, expectedSize, output, nullptr);
+}
+
 const DaxFileBlock *DaxFile::blockById(int id) const
 {
     for (const DaxFileBlock &block : m_blocks) {

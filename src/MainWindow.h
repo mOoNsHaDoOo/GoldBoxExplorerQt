@@ -24,6 +24,8 @@ public:
 
     // Used by the smoke-test entry point; loads a folder and the given file.
     void openForTesting(const QString &path);
+    // Selects a row of the container block browser (0 = all blocks).
+    bool selectContainerRowForTesting(int row);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

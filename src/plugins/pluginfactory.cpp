@@ -1,4 +1,7 @@
 #include "plugins/plugins.h"
+#include "plugins/amigaplugins.h"
+#include "plugins/containerplugin.h"
+#include "plugins/pluginfactory.h"
 
 #include <QFileInfo>
 
@@ -18,6 +21,16 @@ bool matches(const QString &path)
 namespace PluginFactory {
 
 std::unique_ptr<Plugin> create(const QString &path)
+{
+    if (Container::looksLikeContainer(path)) {
+        Container container;
+        if (container.open(path))
+            return std::make_unique<ContainerPlugin>(std::move(container));
+    }
+    return createForFile(path);
+}
+
+std::unique_ptr<Plugin> createForFile(const QString &path)
 {
     const QFileInfo info(path);
     if (!info.exists() || info.size() == 0)
@@ -70,6 +83,8 @@ std::unique_ptr<Plugin> create(const QString &path)
         return std::make_unique<SlbPlugin>();
     if (matches<MxtxPlugin>(path))
         return std::make_unique<MxtxPlugin>();
+    if (matches<AmigaSystemPlugin>(path))
+        return std::make_unique<AmigaSystemPlugin>();
     if (matches<ImagePlugin>(path))
         return std::make_unique<ImagePlugin>();
     if (matches<TextPlugin>(path))

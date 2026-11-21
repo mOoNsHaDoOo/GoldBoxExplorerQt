@@ -4,6 +4,8 @@
 #include "core/daxfile.h"
 #include "parse/character.h"
 #include "parse/item_names.h"
+#include "parse/krynn_records.h"
+#include "plugins/krynnviews.h"
 #include "widgets/characterview.h"
 #include "widgets/hexview.h"
 
@@ -14,6 +16,7 @@
 #include <QHeaderView>
 #include <QPlainTextEdit>
 #include <QStringList>
+#include <QTabWidget>
 #include <QTableWidget>
 
 namespace {
@@ -358,6 +361,20 @@ QWidget *DaxRecordPlugin::createViewer(const PluginParameters &parameters)
     }
     if (dax.isValid() && name.contains(QStringLiteral("WIZ")))
         return daxBlockTable(dax);
+
+    // Champions of Krynn (Amiga) keeps the PC little-endian DAX records;
+    // decode them with the layouts of the readable C port, and keep the
+    // Pool of Radiance interpretation as a second tab.
+    if (dax.isValid() && !dax.isAmiga()
+        && KrynnRecords::looksLikeAmigaKrynnFolder(parameters.filename)) {
+        auto *tabs = new QTabWidget;
+        tabs->addTab(KrynnViews::daxRecords(dax, parameters.filename),
+                     QStringLiteral("Krynn records"));
+        CharacterDocument document;
+        if (loadCharacterDocument(parameters.filename, document, nullptr))
+            tabs->addTab(new CharacterView(document), QStringLiteral("PoR layout"));
+        return tabs;
+    }
 
     CharacterDocument document;
     QString error;
