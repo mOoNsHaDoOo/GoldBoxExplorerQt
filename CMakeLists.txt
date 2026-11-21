@@ -29,6 +29,8 @@ add_executable(gbexplorer
     src/parse/geodax_names.cpp
     src/parse/ecl.cpp
     src/parse/ecl_disasm.cpp
+    src/parse/ecl_basic.cpp
+    src/parse/ecl_basic_symbols.cpp
     src/parse/item_names.cpp
     src/parse/iff.cpp
     src/parse/audio.cpp
