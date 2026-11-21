@@ -38,6 +38,8 @@ add_executable(gbexplorer
     src/parse/glb.cpp
     src/parse/slb.cpp
     src/parse/mxtx.cpp
+    src/parse/krynn_fields.cpp
+    src/parse/krynn_records.cpp
 
     src/widgets/imagesheetview.cpp
     src/widgets/hexview.cpp
@@ -57,6 +59,7 @@ add_executable(gbexplorer
     src/plugins/slbplugin.cpp
     src/plugins/mxtxplugin.cpp
     src/plugins/containerplugin.cpp
+    src/plugins/krynnviews.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)
