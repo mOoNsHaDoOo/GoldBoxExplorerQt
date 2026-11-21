@@ -147,6 +147,19 @@ deliberate behaviour changes.
   annotations: menus, damage, treasure, encounter/parlay, table access,
   memory writes, player/area/map labels, compressed strings, and
   `GOTO`/`GOSUB`/`ON GOTO` with the conditional-skip semantics.
+- **ECL Basic.** New in the port (the original has no equivalent).
+  `parse/ecl_basic.cpp` is a line-by-line port of the campaign tools
+  `ecl_codec.py` (`Program.decode`: header of five `GOTO`s at `$3500`,
+  reachable-code walk with the `ecl_skip_command` operand counts) and
+  `ecl_basic.py` (`disassemble`). The program image is the ECL block minus
+  its first two bytes. Variable names come from `symbols.json`, embedded as
+  `parse/ecl_basic_symbols.cpp`; regenerate it with
+  `python3 tools/gen_ecl_symbols.py symbols.json src/parse/ecl_basic_symbols.cpp`.
+  The decoder signals errors with an internal exception that never leaves
+  `eclBasicDisassemble()`; a failure means "not this dialect" and the viewer
+  shows the message instead of the listing. `tools/check_ecl_basic.py` checks
+  the output byte for byte against the Python tool (22/22 blocks of the
+  Amiga *Champions of Krynn* `ecl1.dax`/`ecl2.dax`).
 - **Music-X MXTX modules.** `SECRET.MX` is a Music-X song module: `MXTX`
   header, six-byte sequence events (delta, note, velocity, duration), and a
   waveform/envelope section. The port decodes the sequence, renders a piano
