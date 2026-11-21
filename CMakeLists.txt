@@ -46,6 +46,7 @@ add_executable(gbexplorer
     src/widgets/audioview.cpp
     src/widgets/geofpview.cpp
     src/widgets/walltemplateexportdialog.cpp
+    src/widgets/eclbasicview.cpp
 
     src/plugins/pluginfactory.cpp
     src/plugins/imageplugins.cpp

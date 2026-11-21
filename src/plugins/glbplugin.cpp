@@ -3,6 +3,7 @@
 #include "parse/ecl.h"
 #include "parse/glb.h"
 #include "widgets/audioview.h"
+#include "widgets/eclbasicview.h"
 #include "widgets/hexview.h"
 
 #include <QDir>
@@ -369,8 +370,15 @@ QWidget *GlbPlugin::createViewer(const PluginParameters &parameters)
     } else if (contentType == QStringLiteral("DIG8")) {
         tabs->addTab(makeAudioView(blocks), QStringLiteral("Audio"));
     } else if (contentType == QStringLiteral("DATA")) {
-        if (fileName.contains(QStringLiteral("ECL")))
+        if (fileName.contains(QStringLiteral("ECL"))) {
             tabs->addTab(makeEclView(blocks), QStringLiteral("ECL"));
+            QVector<QPair<int, QByteArray>> eclBlocks;
+            for (const GlbBlock &block : blocks)
+                eclBlocks.append({block.index, block.data});
+            tabs->addTab(new EclBasicBlocksView(eclBlocks, QFileInfo(parameters.filename)
+                                                               .completeBaseName().toUpper()),
+                         QStringLiteral("ECL Basic"));
+        }
         else if (fileName.contains(QStringLiteral("ITEM")))
             tabs->addTab(makeItemView(blocks), QStringLiteral("Items"));
         else if (fileName.contains(QStringLiteral("MONCHA")))

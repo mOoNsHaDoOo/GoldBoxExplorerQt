@@ -4,11 +4,13 @@
 #include "parse/character.h"
 #include "parse/ecl.h"
 #include "parse/ecl_disasm.h"
+#include "parse/ecl_basic.h"
 #include "dax/walldef.h"
 #include "widgets/geofpview.h"
 #include "parse/geo.h"
 #include "parse/geodax.h"
 #include "widgets/characterview.h"
+#include "widgets/eclbasicview.h"
 #include "widgets/hexview.h"
 
 #include <QFile>
@@ -491,8 +493,16 @@ QWidget *EclPlugin::createViewer(const PluginParameters &parameters)
     auto *tabs = new QTabWidget;
     const bool pool = parameters.filename.contains(QStringLiteral("pool"), Qt::CaseInsensitive)
                       || parameters.filename.contains(QStringLiteral("poolrad"), Qt::CaseInsensitive);
+    const QString fileTag = eclBasicFileTag(parameters.filename);
     for (const EclBlock &block : file.blocks()) {
         auto *blockTabs = new QTabWidget;
+
+        // ECL Basic (Champions of Krynn, Amiga): first tab, and the default
+        // one when the block decodes in that dialect.
+        const EclBasicResult basic = eclBasicDisassembleBlock(block.data, fileTag, block.id);
+        blockTabs->addTab(new EclBasicView(basic.ok, basic.text, basic.error),
+                          basic.ok ? QStringLiteral("ECL Basic")
+                                   : QStringLiteral("ECL Basic (n/a)"));
 
         auto *view = new QPlainTextEdit;
         QString text = QStringLiteral("Block %1 (%2 bytes)\n\n").arg(block.id).arg(block.data.size());
@@ -506,8 +516,8 @@ QWidget *EclPlugin::createViewer(const PluginParameters &parameters)
                       disasm.valid ? disasm.listing
                                    : QStringLiteral("Disassembly failed:\n%1")
                                          .arg(disasm.error));
-        blockTabs->addTab(disasmView, QStringLiteral("Disassembly"));
-        blockTabs->setCurrentIndex(1);
+        const int disasmIndex = blockTabs->addTab(disasmView, QStringLiteral("Disassembly"));
+        blockTabs->setCurrentIndex(basic.ok ? 0 : disasmIndex);
 
         tabs->addTab(blockTabs, QString::number(block.id));
     }
