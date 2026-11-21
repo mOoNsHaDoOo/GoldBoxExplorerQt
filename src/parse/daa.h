@@ -93,7 +93,7 @@ struct DaaSequence
     QVector<int> packedSizes;
     QVector<int> durations; // tenths of a second
     QVector<QRgb> palette;
-    QByteArray header;      // unpacked 0x56-byte header
+    QByteArray header;      // unpacked header (0x56 bytes in CoK, up to 0x5E in DKK)
     QVector<QImage> frames;
     QString error;
 };
@@ -104,7 +104,11 @@ public:
     DaaSequenceFile() = default;
     explicit DaaSequenceFile(const QString &path) { load(path); }
     bool load(const QString &path);
-    bool parse(const QByteArray &bytes);
+    // xorFrames: frames after the first are stored as XOR with it.  Death
+    // Knights of Krynn (recognised by its $5E-byte header) draws the "SPRIT"
+    // sequences without the XOR (sequence_frame, H049+$0BCE); callers pass
+    // false for those files.  Champions of Krynn always XORs.
+    bool parse(const QByteArray &bytes, bool xorFrames = true);
     bool isValid() const { return m_valid; }
     QString errorString() const { return m_error; }
     const QVector<DaaSequence> &sequences() const { return m_sequences; }

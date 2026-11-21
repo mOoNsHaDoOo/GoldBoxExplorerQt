@@ -188,8 +188,11 @@ QWidget *DaaPlugin::createViewer(const PluginParameters &parameters)
     }
 
     // Picture sequences used by pic*.daa / SPRIT*.DAA (Load_Sequence).
+    // Load_Sequence: the "SPRIT" frames are stored whole, the others as XOR
+    // with the first frame (sequence_frame, DKK H049+$0BCE).
     DaaSequenceFile sequences;
-    if (sequences.parse(data)) {
+    const bool xorFrames = !QFileInfo(parameters.filename).fileName().toUpper().startsWith(QStringLiteral("SPRIT"));
+    if (sequences.parse(data, xorFrames)) {
         for (const DaaSequence &seq : sequences.sequences()) {
             for (const QImage &frame : seq.frames) {
                 m_daaImages.append(frame);

@@ -217,6 +217,7 @@ def main() -> None:
     make_iff_inst(OUT)
     make_glb_text(OUT)
     make_amiga_glib(OUT)
+    make_record_files(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -468,6 +469,23 @@ def make_amiga_glib(out: Path) -> None:
     data += set_table + b"".join(subs)
     assert len(data) == position
     (out / "AMIGA.TLB").write_bytes(data)
+
+
+def make_record_files(out: Path) -> None:
+    """A Death Knights of Krynn character ($E8 bytes) and two Pool of
+    Radiance items ($41 bytes each), big-endian like the Amiga saves."""
+    gam = bytearray(0xE8)
+    gam[0:9] = b"TESTHERO\0"
+    gam[0x10:0x1C] = bytes([12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17])
+    gam[0x6A:0x6E] = struct.pack(">I", 1234)
+    (out / "TESTDKK.GAM").write_bytes(bytes(gam))
+    items = bytearray()
+    for name, weight in ((b"Long Sword", 60), (b"Shield", 100)):
+        item = bytearray(0x41)
+        item[0:len(name)] = name
+        item[0x38:0x3A] = struct.pack(">h", weight)
+        items += item
+    (out / "TESTPOR.ITM").write_bytes(bytes(items))
 
 
 if __name__ == "__main__":
