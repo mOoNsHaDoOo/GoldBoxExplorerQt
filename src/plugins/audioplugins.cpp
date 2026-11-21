@@ -78,12 +78,9 @@ QString describeDaa(const QByteArray &data, const DaaFile *daa = nullptr)
         for (const DaaBlock &block : daa->blocks()) {
             QString header;
             if (block.data.size() >= 9) {
-                const int h = (static_cast<quint8>(block.data.at(0)) << 8)
-                              | static_cast<quint8>(block.data.at(1));
-                const int w = (static_cast<quint8>(block.data.at(2)) << 8)
-                              | static_cast<quint8>(block.data.at(3));
-                header = QStringLiteral("  h=%1 w=%2 items=%3")
-                             .arg(h).arg(w).arg(byteAt(block.data, 8));
+                header = QStringLiteral("  ")
+                         + inspectDaaRecord(block.data, isEightByEightDaaName(daa->path()))
+                               .description;
             }
             text += QStringLiteral("%1  %2  %3  %4  %5%6\n")
                         .arg(block.id, 3)
@@ -190,54 +187,83 @@ QWidget *DaaPlugin::createViewer(const PluginParameters &parameters)
         }
     }
 
-    // Alternate Amiga DAA layout used by pic*.daa / SPRIT*.DAA.
-    PicDaaFile picDaa(parameters.filename);
-    if (picDaa.isValid()) {
-        auto *tabs = new QTabWidget;
-
-        auto *table = new QTableWidget;
-        table->setColumnCount(9);
-        table->setHorizontalHeaderLabels({
-            QStringLiteral("#"), QStringLiteral("Bytes"), QStringLiteral("Offset"),
-            QStringLiteral("Height"), QStringLiteral("Width"), QStringLiteral("X"),
-            QStringLiteral("Y"), QStringLiteral("Frames"), QStringLiteral("Palette[0]")
-        });
-        table->verticalHeader()->setVisible(false);
-        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        table->setFont(QFont(QStringLiteral("Courier New"), 9));
-        table->setRowCount(picDaa.records().size());
-        for (int i = 0; i < picDaa.records().size(); ++i) {
-            const PicDaaRecord &record = picDaa.records().at(i);
-            QString palette0;
-            if (record.decoded.size() >= 11) {
-                const int v = (static_cast<quint8>(record.decoded.at(9)) << 8)
-                              | static_cast<quint8>(record.decoded.at(10));
-                palette0 = QStringLiteral("%1").arg(v, 4, 16, QLatin1Char('0')).toUpper();
+    // Picture sequences used by pic*.daa / SPRIT*.DAA (Load_Sequence).
+    DaaSequenceFile sequences;
+    if (sequences.parse(data)) {
+        for (const DaaSequence &seq : sequences.sequences()) {
+            for (const QImage &frame : seq.frames) {
+                m_daaImages.append(frame);
+                m_daaIds.append(seq.id);
             }
-            table->setItem(i, 0, new QTableWidgetItem(QString::number(record.index)));
-            table->setItem(i, 1, new QTableWidgetItem(QString::number(record.paddedSize)));
-            table->setItem(i, 2, new QTableWidgetItem(QString::number(record.offset)));
-            table->setItem(i, 3, new QTableWidgetItem(QString::number(record.height)));
-            table->setItem(i, 4, new QTableWidgetItem(QString::number(record.width)));
-            table->setItem(i, 5, new QTableWidgetItem(QString::number(record.x)));
-            table->setItem(i, 6, new QTableWidgetItem(QString::number(record.y)));
-            table->setItem(i, 7, new QTableWidgetItem(QString::number(record.frameCount)));
-            table->setItem(i, 8, new QTableWidgetItem(palette0));
         }
-        table->resizeColumnsToContents();
-        tabs->addTab(table, QStringLiteral("Records"));
+        if (!m_daaImages.isEmpty()) {
+            m_isImage = true;
+            ImageSheetView::Options options;
+            options.displayBorder = true;
+            m_sheet = new ImageSheetView(m_daaImages, m_daaIds, options);
+            m_sheet->setContainerWidth(parameters.containerWidth);
+            m_sheet->setZoom(parameters.zoom);
 
-        QString summary;
-        summary += QStringLiteral("Alternate Amiga DAA container\n");
-        summary += QStringLiteral("Data offset: %1\n").arg(picDaa.dataOffset());
-        summary += QStringLiteral("Records: %1\n\n").arg(picDaa.records().size());
-        summary += QStringLiteral("The records decode with the SSI RLE codec and begin with\n");
-        summary += QStringLiteral("a little-endian height/width/x/y/frame header followed\n");
-        summary += QStringLiteral("by a 64-byte Amiga palette. The pixel packing of these\n");
-        summary += QStringLiteral("particular banks is not yet identified.\n");
-        tabs->addTab(summaryView(summary), QStringLiteral("Summary"));
-        tabs->addTab(new HexView(data), QStringLiteral("Hex"));
-        return tabs;
+            QString summary;
+            summary += QStringLiteral("Amiga picture sequence container (Load_Sequence)\n");
+            summary += QStringLiteral("Directory size: %1 bytes, %2 sequences\n\n")
+                           .arg(sequences.dataOffset())
+                           .arg(sequences.sequences().size());
+            summary += QStringLiteral(" id  offset  stored  size     frames  durations (1/10 s)\n");
+            for (const DaaSequence &seq : sequences.sequences()) {
+                QStringList durations;
+                for (int d : seq.durations)
+                    durations.append(QString::number(d));
+                summary += QStringLiteral("%1  %2  %3  %4x%5  %6       %7%8\n")
+                               .arg(seq.id, 3)
+                               .arg(seq.offset, 6)
+                               .arg(seq.storedSize, 6)
+                               .arg(seq.units * 8, 3)
+                               .arg(seq.rows, -3)
+                               .arg(seq.frameCount)
+                               .arg(durations.join(QLatin1Char(' ')))
+                               .arg(seq.error.isEmpty() ? QString()
+                                                        : QStringLiteral("  [%1]").arg(seq.error));
+            }
+            summary += QStringLiteral("\nFrames after the first are stored XOR-ed with frame 1;\n"
+                                      "they are shown here already combined. The game mirrors\n"
+                                      "pictures at random and shows only frame 1 of PIC/FINAL\n"
+                                      "sequences when animation is off.\n");
+
+            auto *tabs = new QTabWidget;
+            tabs->addTab(scrollFor(m_sheet), QStringLiteral("Frames"));
+            tabs->addTab(summaryView(summary), QStringLiteral("Summary"));
+            tabs->addTab(new HexView(data), QStringLiteral("Hex"));
+            return tabs;
+        }
+    }
+
+    // Mouse pointers (pointers.daa).
+    if (QFileInfo(parameters.filename).fileName().startsWith(QStringLiteral("pointers"),
+                                                             Qt::CaseInsensitive)) {
+        QVector<DaaPointer> pointers;
+        if (decodePointerFile(data, pointers)) {
+            QString summary = QStringLiteral("Amiga mouse pointers (SetPointer data, 16 pixels wide)\n\n"
+                                             " #  offset  hotX  hotY  height\n");
+            for (const DaaPointer &p : pointers) {
+                m_daaImages.append(p.image);
+                m_daaIds.append(p.index);
+                summary += QStringLiteral("%1  %2  %3  %4  %5\n")
+                               .arg(p.index, 2).arg(p.offset, 6).arg(p.hotX, 4)
+                               .arg(p.hotY, 4).arg(p.height, 6);
+            }
+            summary += QStringLiteral("\nThe pointer colours (sprite colours 17-19) come from the\n"
+                                      "screen palette at run time; placeholder colours are used.\n");
+            m_isImage = true;
+            m_sheet = new ImageSheetView(m_daaImages, m_daaIds, {});
+            m_sheet->setContainerWidth(parameters.containerWidth);
+            m_sheet->setZoom(parameters.zoom);
+            auto *tabs = new QTabWidget;
+            tabs->addTab(scrollFor(m_sheet), QStringLiteral("Pointers"));
+            tabs->addTab(summaryView(summary), QStringLiteral("Summary"));
+            tabs->addTab(new HexView(data), QStringLiteral("Hex"));
+            return tabs;
+        }
     }
 
     // Amiga IFF audio hidden behind a .DAA/.DAI extension.
