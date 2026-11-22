@@ -219,6 +219,7 @@ def main() -> None:
     make_amiga_glib(OUT)
     make_record_files(OUT)
     make_adf(OUT)
+    make_zip(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -561,6 +562,20 @@ def make_adf(out: Path) -> None:
     put(root, 512 - 4, 1)                    # ST_ROOT
     checksum(root)
     (out / "TEST.ADF").write_bytes(bytes(image))
+
+
+def make_zip(out: Path) -> None:
+    """TESTADF.ZIP: TEST.ADF deflated and a stored text file, with fixed
+    dates so the archive is the same at every run."""
+    import zipfile
+    adf = (out / "TEST.ADF").read_bytes()
+    with zipfile.ZipFile(out / "TESTADF.ZIP", "w") as archive:
+        info = zipfile.ZipInfo("TEST.ADF", date_time=(1991, 2, 21, 12, 0, 0))
+        info.compress_type = zipfile.ZIP_DEFLATED
+        archive.writestr(info, adf)
+        info = zipfile.ZipInfo("readme.txt", date_time=(1991, 2, 21, 12, 0, 0))
+        info.compress_type = zipfile.ZIP_STORED
+        archive.writestr(info, b"Synthetic archive for GoldBoxExplorerQt.\n")
 
 
 if __name__ == "__main__":

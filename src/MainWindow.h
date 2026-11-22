@@ -49,10 +49,14 @@ private:
     void selectRootFolder();
     void exportCurrentFile();
     void showAbout();
-    // Amiga disk images: extracted into the temporary folder and shown as an
-    // extra top-level folder of the tree.
-    void openAdf(const QString &path);
-    QTreeWidgetItem *addAdfTreeItem(const QString &adfPath, const QString &folder);
+    // Amiga disk images and ZIP archives: extracted into the temporary
+    // folder and shown as extra top-level folders of the tree ([ADF], [ZIP]).
+    // The disk images found in a ZIP are extracted too.
+    void openArchive(const QString &path);
+    QString extractAdf(const QString &path, QString *error);
+    QString extractZip(const QString &path, QStringList *disks, QString *error);
+    QTreeWidgetItem *addArchiveTreeItem(const QString &archivePath, const QString &folder);
+    void selectTreeFolder(const QString &folder);
 
     QTreeWidget *m_folderView = nullptr;
     QTableWidget *m_fileView = nullptr;
@@ -70,5 +74,5 @@ private:
     std::unique_ptr<Plugin> m_plugin;
     QSettings m_settings;
     float m_zoom = 1.0f;
-    QMap<QString, QString> m_adfFolders; // disk image -> extraction folder
+    QMap<QString, QString> m_archiveFolders; // disk image or ZIP -> extraction folder
 };

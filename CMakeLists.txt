@@ -17,6 +17,7 @@ add_executable(gbexplorer
     src/core/container.cpp
     src/core/adf.cpp
     src/core/tempfolder.cpp
+    src/core/zip.cpp
 
     src/dax/palette.cpp
     src/dax/renderblocks.cpp
@@ -126,6 +127,16 @@ if(BUILD_TESTING)
         set_tests_properties(adf_extract PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              PASS_REGULAR_EXPRESSION "S/startup-sequence  11")
+    endif()
+
+    # ZIP archive with a disk image (built-in deflate decoder, CRC check).
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTADF.ZIP")
+        add_test(NAME zip_extract
+                 COMMAND gbexplorer --zip "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTADF.ZIP"
+                         "${CMAKE_CURRENT_BINARY_DIR}/zip_test_out")
+        set_tests_properties(zip_extract PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             PASS_REGULAR_EXPRESSION "TEST.ADF  10240  method 8")
     endif()
 
     # Death Knights of Krynn / Pool of Radiance record viewers.

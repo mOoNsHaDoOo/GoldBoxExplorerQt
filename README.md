@@ -41,7 +41,7 @@ project is portable to Linux and Windows.
 | --- | --- |
 | Main window | Directory tree, sortable file list, zoom menu/toolbar, Ctrl+wheel zoom, status bar, remembered root folder |
 | Plugin framework | Same detection order and plugin-per-file design as the original |
-| Amiga disk images | Clicking an `.adf` (AmigaDOS OFS/FFS, DD or HD) extracts it into `tmp` next to the executable and shows it as an `[ADF]` folder of the tree; `tmp` is emptied at start and deleted at exit. CLI: `--adf FILE [OUTDIR]` |
+| Disk images and ZIP | Clicking an `.adf` (AmigaDOS OFS/FFS, DD or HD) or a `.zip` extracts it into `tmp` next to the executable and shows it as an `[ADF]`/`[ZIP]` folder of the tree; the disk images inside a ZIP are extracted too and the first one is shown. The ZIP reader has its own deflate decoder (methods stored and deflate, ZIP64, UTF-8 names, CRC check; encrypted entries and other methods are reported). `tmp` is emptied at start and deleted at exit. CLI: `--adf FILE [OUTDIR]`, `--zip FILE [OUTDIR]` |
 | DAX images | VGA, EGA, VGA sprites, EGA sprites, VGA strata, VGA mixed (planar and EGA), 8×8 monochrome, unknown blocks |
 | DAX wall sets | `WALLDEF*.DAX` assembly from `8x8d*.DAX`, including 8×8 tile loading and multi-wall-set layouts; magenta transparency; `Export wall template...` dialog with overlay-difference mode |
 | TLB graphics | TILE and master libraries, drawing methods 16/17/18/21/23, internal/external colour tables, CBODY/CPIC combat icons; big-endian Amiga GLIB libraries with 4-plane (method 0) and 5-plane (method 1) planar images |

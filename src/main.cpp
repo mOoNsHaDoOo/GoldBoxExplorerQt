@@ -4,6 +4,7 @@
 #include "core/daxfile.h"
 #include "core/adf.h"
 #include "core/tempfolder.h"
+#include "core/zip.h"
 #include "parse/audio.h"
 #include "parse/smus.h"
 #include "parse/slb.h"
@@ -115,6 +116,24 @@ int main(int argc, char *argv[])
         for (const QString &w : image.warnings())
             qWarning().noquote() << "warning:" << w;
         return 0;
+    }
+
+    // Lists the entries of a ZIP archive: --zip FILE [OUTDIR] (with OUTDIR
+    // the entries are also extracted there).
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--zip")) {
+        ZipArchive zip;
+        if (!zip.load(QString::fromLocal8Bit(argv[2]))) {
+            qWarning().noquote() << zip.errorString();
+            return 1;
+        }
+        for (const ZipEntry &e : zip.entries())
+            qInfo().noquote() << (e.isDirectory ? QStringLiteral("%1/").arg(e.path)
+                                                : QStringLiteral("%1  %2  method %3").arg(e.path).arg(e.size).arg(e.method));
+        if (argc >= 4)
+            zip.extractTo(QString::fromLocal8Bit(argv[3]));
+        for (const QString &w : zip.warnings())
+            qWarning().noquote() << "warning:" << w;
+        return zip.warnings().isEmpty() ? 0 : 1;
     }
 
     // Lists the inner blocks of a multi-block file (DAX, DAA, GLB, TLB).

@@ -3,6 +3,7 @@
 #include "ExportDialog.h"
 #include "core/adf.h"
 #include "core/tempfolder.h"
+#include "core/zip.h"
 #include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -325,53 +326,38 @@ void MainWindow::initDirectory(const QString &path)
     m_folderView->addTopLevelItem(root);
     root->setExpanded(true);
     addDirectories(root, absolute);
-    for (auto it = m_adfFolders.cbegin(); it != m_adfFolders.cend(); ++it)
-        addAdfTreeItem(it.key(), it.value());
+    for (auto it = m_archiveFolders.cbegin(); it != m_archiveFolders.cend(); ++it)
+        addArchiveTreeItem(it.key(), it.value());
     m_folderView->setCurrentItem(root);
 }
 
-QTreeWidgetItem *MainWindow::addAdfTreeItem(const QString &adfPath, const QString &folder)
+namespace {
+
+// A new folder in the temporary folder, named after the archive.
+QString newTempFolder(const QString &archivePath)
 {
-    auto *item = new QTreeWidgetItem(
-        QStringList(QStringLiteral("[ADF] ") + QFileInfo(adfPath).fileName().toUpper()));
+    const QString base = QFileInfo(archivePath).fileName(); // "disk.adf", "game.zip"
+    QString folder = QDir(TempFolder::path()).filePath(base);
+    for (int n = 2; QFileInfo::exists(folder); ++n)
+        folder = QDir(TempFolder::path()).filePath(QStringLiteral("%1 (%2)").arg(base).arg(n));
+    return folder;
+}
+
+} // namespace
+
+QTreeWidgetItem *MainWindow::addArchiveTreeItem(const QString &archivePath, const QString &folder)
+{
+    const QString tag = AdfImage::looksLikeAdf(archivePath) ? QStringLiteral("[ADF] ") : QStringLiteral("[ZIP] ");
+    auto *item = new QTreeWidgetItem(QStringList(tag + QFileInfo(archivePath).fileName().toUpper()));
     item->setData(0, Qt::UserRole, folder);
-    item->setToolTip(0, QStringLiteral("%1\nextracted to %2").arg(adfPath, folder));
+    item->setToolTip(0, QStringLiteral("%1\nextracted to %2").arg(archivePath, folder));
     new QTreeWidgetItem(item);
     m_folderView->addTopLevelItem(item);
     return item;
 }
 
-void MainWindow::openAdf(const QString &path)
+void MainWindow::selectTreeFolder(const QString &folder)
 {
-    const QString key = QFileInfo(path).absoluteFilePath();
-    QString folder = m_adfFolders.value(key);
-    if (folder.isEmpty() || !QDir(folder).exists()) {
-        AdfImage image;
-        if (!image.load(path)) {
-            auto *message = new QPlainTextEdit(QStringLiteral("%1\n\n%2")
-                                                   .arg(QFileInfo(path).fileName(), image.errorString()));
-            message->setReadOnly(true);
-            showViewer(message);
-            return;
-        }
-        const QString base = QFileInfo(path).completeBaseName();
-        folder = QDir(TempFolder::path()).filePath(base);
-        for (int n = 2; QFileInfo::exists(folder); ++n)
-            folder = QDir(TempFolder::path()).filePath(QStringLiteral("%1 (%2)").arg(base).arg(n));
-        if (!image.extractTo(folder)) {
-            QMessageBox::warning(this, QStringLiteral("Disk image"), image.errorString());
-            return;
-        }
-        m_adfFolders.insert(key, folder);
-        statusBar()->showMessage(QStringLiteral("%1: %2 volume \"%3\", %4 entries%5")
-                                     .arg(QFileInfo(path).fileName(), image.fileSystem(), image.volumeName())
-                                     .arg(image.entries().size())
-                                     .arg(image.warnings().isEmpty()
-                                              ? QString()
-                                              : QStringLiteral(", %1 warning(s)").arg(image.warnings().size())),
-                                 10000);
-        addAdfTreeItem(key, folder);
-    }
     for (int i = 0; i < m_folderView->topLevelItemCount(); ++i) {
         QTreeWidgetItem *item = m_folderView->topLevelItem(i);
         if (item->data(0, Qt::UserRole).toString() == folder) {
@@ -380,6 +366,106 @@ void MainWindow::openAdf(const QString &path)
             return;
         }
     }
+}
+
+QString MainWindow::extractAdf(const QString &path, QString *error)
+{
+    const QString key = QFileInfo(path).absoluteFilePath();
+    const QString known = m_archiveFolders.value(key);
+    if (!known.isEmpty() && QDir(known).exists())
+        return known;
+    AdfImage image;
+    if (!image.load(path)) {
+        *error = QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), image.errorString());
+        return {};
+    }
+    const QString folder = newTempFolder(path);
+    if (!image.extractTo(folder)) {
+        *error = image.errorString();
+        return {};
+    }
+    m_archiveFolders.insert(key, folder);
+    addArchiveTreeItem(key, folder);
+    statusBar()->showMessage(QStringLiteral("%1: %2 volume \"%3\", %4 entries%5")
+                                 .arg(QFileInfo(path).fileName(), image.fileSystem(), image.volumeName())
+                                 .arg(image.entries().size())
+                                 .arg(image.warnings().isEmpty()
+                                          ? QString()
+                                          : QStringLiteral(", %1 warning(s)").arg(image.warnings().size())),
+                             10000);
+    return folder;
+}
+
+QString MainWindow::extractZip(const QString &path, QStringList *disks, QString *error)
+{
+    const QString key = QFileInfo(path).absoluteFilePath();
+    const QString known = m_archiveFolders.value(key);
+    if (!known.isEmpty() && QDir(known).exists())
+        return known;
+    ZipArchive zip;
+    if (!zip.load(path)) {
+        *error = QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), zip.errorString());
+        return {};
+    }
+    const QString folder = newTempFolder(path);
+    const QStringList written = zip.extractTo(folder);
+    m_archiveFolders.insert(key, folder);
+    addArchiveTreeItem(key, folder);
+    for (const QString &file : written) {
+        const QString full = QDir(folder).filePath(file);
+        if (AdfImage::looksLikeAdf(full))
+            disks->append(full);
+    }
+    QString message = QStringLiteral("%1: %2 file(s) extracted").arg(QFileInfo(path).fileName()).arg(written.size());
+    if (!zip.warnings().isEmpty())
+        message += QStringLiteral(", not extracted: %1").arg(zip.warnings().join(QStringLiteral("; ")));
+    statusBar()->showMessage(message, 15000);
+    if (written.isEmpty() && !zip.warnings().isEmpty())
+        *error = QStringLiteral("%1\n\nNothing could be extracted:\n%2")
+                     .arg(QFileInfo(path).fileName(), zip.warnings().join(QLatin1Char('\n')));
+    return folder;
+}
+
+void MainWindow::openArchive(const QString &path)
+{
+    QString error;
+    QString show;
+    QStringList failed;
+    if (AdfImage::looksLikeAdf(path)) {
+        show = extractAdf(path, &error);
+    } else {
+        QStringList disks;
+        show = extractZip(path, &disks, &error);
+        // The disk images in the archive are extracted as well; the first
+        // one is shown.
+        QString firstDisk;
+        for (const QString &disk : disks) {
+            QString diskError;
+            const QString folder = extractAdf(disk, &diskError);
+            if (folder.isEmpty())
+                failed.append(diskError);
+            else if (firstDisk.isEmpty())
+                firstDisk = folder;
+        }
+        if (!firstDisk.isEmpty())
+            show = firstDisk;
+    }
+    if (!error.isEmpty() || !failed.isEmpty()) {
+        QStringList lines;
+        if (!error.isEmpty())
+            lines.append(error);
+        lines += failed;
+        auto *message = new QPlainTextEdit(lines.join(QStringLiteral("\n\n")));
+        message->setReadOnly(true);
+        if (show.isEmpty()) {
+            showViewer(message);
+            return;
+        }
+        QMessageBox::information(this, QStringLiteral("Archive"), lines.join(QStringLiteral("\n\n")));
+        delete message;
+    }
+    if (!show.isEmpty())
+        selectTreeFolder(show);
 }
 
 void MainWindow::addDirectories(QTreeWidgetItem *item, const QString &path)
@@ -454,9 +540,9 @@ void MainWindow::loadFile(const QString &path)
     m_plugin.reset();
     showViewer(nullptr);
 
-    if (AdfImage::looksLikeAdf(path)) {
+    if (AdfImage::looksLikeAdf(path) || ZipArchive::looksLikeZip(path)) {
         // Changing folder rebuilds the file list: leave the selection signal first.
-        QTimer::singleShot(0, this, [this, path] { openAdf(path); });
+        QTimer::singleShot(0, this, [this, path] { openArchive(path); });
         return;
     }
 
