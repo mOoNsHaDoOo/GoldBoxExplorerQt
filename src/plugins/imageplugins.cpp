@@ -52,10 +52,26 @@ QString decodeText(const QByteArray &raw)
         return decoder.decode(raw.mid(2));
     }
 
+    // ANSI/Amiga console control sequences (ESC [ ... letter, CSI $9B ...),
+    // used by the colour text files of the Amiga disks, are dropped.
+    QByteArray plain;
+    plain.reserve(raw.size());
+    for (int i = 0; i < raw.size(); ++i) {
+        const quint8 c = static_cast<quint8>(raw.at(i));
+        const bool esc = c == 0x1B && i + 1 < raw.size() && raw.at(i + 1) == '[';
+        if (esc || c == 0x9B) {
+            i += esc ? 2 : 1;
+            while (i < raw.size() && !(static_cast<quint8>(raw.at(i)) >= 0x40
+                                       && static_cast<quint8>(raw.at(i)) <= 0x7E))
+                ++i;
+            continue;
+        }
+        plain.append(static_cast<char>(c));
+    }
     QStringDecoder decoder(QStringConverter::Utf8);
-    const QString text = decoder.decode(raw);
+    const QString text = decoder.decode(plain);
     if (decoder.hasError())
-        return QString::fromLatin1(raw);
+        return QString::fromLatin1(plain);
     return text;
 }
 

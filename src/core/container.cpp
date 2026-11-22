@@ -248,7 +248,7 @@ bool Container::openDaa(const QByteArray &raw)
 bool Container::openSequence(const QByteArray &raw)
 {
     DaaSequenceFile file;
-    if (!file.parse(raw))
+    if (!file.parse(raw, !upperName(m_path).startsWith(QStringLiteral("SPRIT"))))
         return false;
     QVector<ContainerEntry> entries;
     for (const DaaSequence &seq : file.sequences()) {

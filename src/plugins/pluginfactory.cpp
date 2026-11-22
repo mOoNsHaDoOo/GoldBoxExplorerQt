@@ -1,6 +1,7 @@
 #include "plugins/plugins.h"
 #include "plugins/amigaplugins.h"
 #include "plugins/containerplugin.h"
+#include "plugins/recordplugins.h"
 #include "plugins/pluginfactory.h"
 
 #include <QFileInfo>
@@ -35,6 +36,11 @@ std::unique_ptr<Plugin> createForFile(const QString &path)
     const QFileInfo info(path);
     if (!info.exists() || info.size() == 0)
         return nullptr;
+
+    // Death Knights of Krynn / Pool of Radiance records: matched by exact
+    // name or extension and size, before the generic DAA and save viewers.
+    if (matches<GoldBoxRecordPlugin>(path))
+        return std::make_unique<GoldBoxRecordPlugin>();
 
     // Keep the same order as PluginFactory in the original application.
     if (matches<EclPlugin>(path))

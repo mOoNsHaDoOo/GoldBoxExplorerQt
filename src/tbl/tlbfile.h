@@ -5,6 +5,7 @@
 #include <QPoint>
 #include <QRgb>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class ByteReader;
@@ -30,6 +31,7 @@ public:
     void loadBitmaps();
     const QVector<QImage> &bitmaps() const { return m_bitmaps; }
     QVector<QPoint> imageOffsets() const;
+    QStringList amigaErrors() const { return m_amigaErrors; }
 
     struct Header
     {
@@ -52,6 +54,8 @@ private:
     void readColorTableData(ByteReader &reader);
     void findAndLoadExternalColorTable();
     void loadExternalColorTable(const QString &path);
+    bool loadAmigaTiles();
+    QVector<QRgb> findAmigaFallbackPalette() const;
 
     QImage createBitmap(const TlbImageHeader &header, ByteReader &reader);
     QImage createBitmapFromBuffer(const TlbImageHeader &header, const QByteArray &buffer);
@@ -79,4 +83,5 @@ private:
     QVector<QPoint> m_imageOffsets;
     QVector<QRgb> m_palette;
     bool m_combatIcon = false;
+    QStringList m_amigaErrors;
 };

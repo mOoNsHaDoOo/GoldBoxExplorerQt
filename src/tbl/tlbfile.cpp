@@ -1,6 +1,8 @@
 #include "tbl/tlbfile.h"
 
 #include "core/byteutils.h"
+#include "parse/amiga_tile.h"
+#include "parse/glib_codec.h"
 
 #include <QDir>
 #include <QFile>
@@ -82,6 +84,10 @@ bool TlbFile::load(const QString &path)
         const quint32 sizeBe = be(4);
         if (sizeBe == static_cast<quint32>(m_bytes.size()) && sizeLe != sizeBe)
             m_bigEndian = true;
+        // A compressed library stores its decompressed size: only the Amiga
+        // conversions compress, so a non-zero method byte means big-endian.
+        if (GlibCodec::compressionMethod(m_bytes) > 0)
+            m_bigEndian = true;
     }
 
     m_valid = true;
@@ -124,6 +130,9 @@ void TlbFile::loadBitmaps()
     m_imageOffsets.clear();
     m_palette = defaultPalette();
     if (!m_valid)
+        return;
+
+    if (m_bigEndian && loadAmigaTiles())
         return;
 
     m_combatIcon = false;
@@ -413,6 +422,58 @@ void TlbFile::loadExternalColorTable(const QString &path)
     other.loadBitmaps();
     if (other.m_palette.size() == 256)
         m_palette = other.m_palette;
+}
+
+// Amiga GLIB image libraries (Curse of the Azure Bonds and later): nested
+// and compressed libraries, all drawing methods, palettes from the file.
+bool TlbFile::loadAmigaTiles()
+{
+    if (!AmigaTile::isAmigaTileLibrary(m_bytes))
+        return false;
+    AmigaTileResult result = AmigaTile::decode(m_bytes);
+    if (result.usedFallbackPalette) {
+        const QVector<QRgb> fallback = findAmigaFallbackPalette();
+        if (!fallback.isEmpty())
+            result = AmigaTile::decode(m_bytes, fallback);
+    }
+    if (result.images.isEmpty())
+        return false;
+    for (const AmigaTileImage &image : result.images) {
+        m_bitmaps.append(image.image);
+        m_imageOffsets.append(QPoint(image.xOffset, image.yOffset));
+    }
+    m_amigaErrors = result.errors;
+    return true;
+}
+
+// Images drawn before any palette of their file use the palette the game
+// already has on screen; ALWAYS.TLB (loaded at start) is the closest match.
+QVector<QRgb> TlbFile::findAmigaFallbackPalette() const
+{
+    const QFileInfo self(m_fullPath);
+    QVector<QDir> dirs{self.absoluteDir()};
+    QDir parent = self.absoluteDir();
+    if (parent.cdUp()) {
+        dirs.append(parent);
+        const QStringList subdirs = parent.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &sub : subdirs)
+            dirs.append(QDir(parent.filePath(sub)));
+    }
+    for (const QDir &dir : dirs) {
+        const QStringList hits = dir.entryList({QStringLiteral("always.tlb")}, QDir::Files);
+        for (const QString &hit : hits) {
+            const QString path = dir.filePath(hit);
+            if (QFileInfo(path).canonicalFilePath() == self.canonicalFilePath())
+                continue;
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly))
+                continue;
+            const QVector<QRgb> palette = AmigaTile::firstPalette(file.readAll());
+            if (!palette.isEmpty())
+                return palette;
+        }
+    }
+    return {};
 }
 
 QImage TlbFile::createBitmap(const TlbImageHeader &header, ByteReader &reader)

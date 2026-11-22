@@ -314,7 +314,7 @@ bool DaaSequenceFile::load(const QString &path)
     return parse(file.readAll());
 }
 
-bool DaaSequenceFile::parse(const QByteArray &bytes)
+bool DaaSequenceFile::parse(const QByteArray &bytes, bool xorFrames)
 {
     m_error.clear();
     m_sequences.clear();
@@ -348,7 +348,15 @@ bool DaaSequenceFile::parse(const QByteArray &bytes)
         int at = m_dataOffset + static_cast<int>(seq.offset);
         const int headerSize = be16(bytes, at);
         at += 2;
-        const int used = unpackByteRun1(bytes, at, headerSize, seq.header, 0x56);
+        // Death Knights of Krynn packs a $5E-byte header (ten frame sizes),
+        // Champions of Krynn a $56-byte one (six).
+        int used = unpackByteRun1(bytes, at, headerSize, seq.header, 0x5E);
+        const bool dkkHeader = used >= 0;
+        if (!dkkHeader)
+            used = unpackByteRun1(bytes, at, headerSize, seq.header, 0x56);
+        // Only Death Knights of Krynn stores the "SPRIT" frames whole;
+        // Champions of Krynn XORs every frame with the first.
+        const bool xorWithFirst = xorFrames || !dkkHeader;
         if (headerSize <= 0 || headerSize > 0x100 || used < 0) {
             m_error = QStringLiteral("Sequence %1 has an invalid packed header.").arg(i);
             m_sequences.clear();
@@ -362,7 +370,7 @@ bool DaaSequenceFile::parse(const QByteArray &bytes)
         seq.w6 = be16(seq.header, 6);
         seq.frameCount = be16(seq.header, 8);
         if (seq.rows <= 0 || seq.rows > 400 || seq.units <= 0 || seq.units > 64
-            || seq.frameCount <= 0 || seq.frameCount > 6) {
+            || seq.frameCount <= 0 || seq.frameCount > (seq.header.size() - 0x4A) / 2) {
             m_error = QStringLiteral("Sequence %1 has an implausible header.").arg(i);
             m_sequences.clear();
             return false;
@@ -391,7 +399,7 @@ bool DaaSequenceFile::parse(const QByteArray &bytes)
             at += 2;
             if (k == 0) {
                 first = planes;
-            } else {
+            } else if (xorWithFirst) {
                 for (int b = 0; b < planeBytes; ++b)
                     planes[b] = static_cast<char>(planes.at(b) ^ first.at(b));
             }

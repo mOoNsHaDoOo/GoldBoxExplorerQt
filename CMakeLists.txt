@@ -38,6 +38,10 @@ add_executable(gbexplorer
     src/parse/daa.cpp
     src/parse/smus.cpp
     src/parse/glb.cpp
+    src/parse/glib_codec.cpp
+    src/parse/amiga_tile.cpp
+    src/parse/record_layouts.cpp
+    src/parse/record_layouts_gen.cpp
     src/parse/slb.cpp
     src/parse/mxtx.cpp
     src/parse/krynn_fields.cpp
@@ -64,6 +68,7 @@ add_executable(gbexplorer
     src/plugins/containerplugin.cpp
     src/plugins/krynnviews.cpp
     src/plugins/amigaplugins.cpp
+    src/plugins/recordplugins.cpp
 )
 
 target_include_directories(gbexplorer PRIVATE src)
@@ -111,6 +116,17 @@ if(BUILD_TESTING)
                              TIMEOUT 10)
     endif()
 
+    # Death Knights of Krynn / Pool of Radiance record viewers.
+    foreach(test_file TESTDKK.GAM TESTPOR.ITM)
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
+            add_test(NAME smoke_${test_file}
+                     COMMAND gbexplorer --smoke "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
+            set_tests_properties(smoke_${test_file} PROPERTIES
+                                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                 TIMEOUT 10)
+        endif()
+    endforeach()
+
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTITEM.DAX")
         add_test(NAME smoke_item_dax
                  COMMAND gbexplorer --smoke "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TESTITEM.DAX")
@@ -121,7 +137,7 @@ if(BUILD_TESTING)
 
     # Container browser: --list must recognise the multi-block files and
     # --probe-block must find a specific viewer for one inner block.
-    foreach(test_file PIC.DAX ECL1.DAX GEO1.DAX TESTDAA.DAA TESTITEM.DAX STRINGS.GLB IMAGES.TLB)
+    foreach(test_file PIC.DAX ECL1.DAX GEO1.DAX TESTDAA.DAA TESTITEM.DAX STRINGS.GLB IMAGES.TLB AMIGA.TLB)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
             add_test(NAME list_${test_file}
                      COMMAND gbexplorer --list "${CMAKE_CURRENT_SOURCE_DIR}/testdata/${test_file}")
