@@ -218,6 +218,7 @@ def main() -> None:
     make_glb_text(OUT)
     make_amiga_glib(OUT)
     make_record_files(OUT)
+    make_adf(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -486,6 +487,80 @@ def make_record_files(out: Path) -> None:
         item[0x38:0x3A] = struct.pack(">h", weight)
         items += item
     (out / "TESTPOR.ITM").write_bytes(bytes(items))
+
+
+def make_adf(out: Path) -> None:
+    """A tiny AmigaDOS OFS disk (20 blocks, root block 10): file README and
+    directory S with startup-sequence.  Standard AmigaDOS layout: header
+    blocks (type 2), OFS data blocks (type 8), 72-entry hash tables."""
+    blocks = 20
+    image = bytearray(blocks * 512)
+
+    def put(block, offset, value):
+        struct.pack_into(">I", image, block * 512 + offset, value & 0xFFFFFFFF)
+
+    def name(block, text):
+        image[block * 512 + 432] = len(text)
+        image[block * 512 + 433:block * 512 + 433 + len(text)] = text
+
+    def hash_of(text):
+        h = len(text)
+        for c in text.upper():
+            h = (h * 13 + c) & 0x7FF
+        return h % 72
+
+    def checksum(block, offset=20):
+        put(block, offset, 0)
+        total = sum(struct.unpack_from(">128I", image, block * 512)) & 0xFFFFFFFF
+        put(block, offset, -total)
+
+    def file_entry(header, parent, text, data, first_data):
+        put(header, 0, 2)
+        put(header, 4, header)
+        chunks = [data[i:i + 488] for i in range(0, len(data), 488)]
+        put(header, 8, len(chunks))
+        put(header, 16, first_data)
+        for i, chunk in enumerate(chunks):
+            put(header, 24 + (71 - i) * 4, first_data + i)
+            b = first_data + i
+            put(b, 0, 8)
+            put(b, 4, header)
+            put(b, 8, i + 1)
+            put(b, 12, len(chunk))
+            put(b, 16, first_data + i + 1 if i + 1 < len(chunks) else 0)
+            image[b * 512 + 24:b * 512 + 24 + len(chunk)] = chunk
+            checksum(b)
+        put(header, 512 - 188, len(data))
+        put(header, 512 - 92, 4800)          # days since 1978: 1991-02-21
+        name(header, text)
+        put(header, 512 - 12, parent)
+        put(header, 512 - 4, (1 << 32) - 3)  # ST_FILE
+        checksum(header)
+
+    image[0:4] = b"DOS\0"
+    put(0, 8, 10)                            # root block
+    root, sdir = 10, 12
+    readme = b"Synthetic test disk for GoldBoxExplorerQt.\n" * 14
+    startup = b"echo hello\n"
+    file_entry(11, root, b"README", readme, 13)
+    file_entry(16, sdir, b"startup-sequence", startup, 17)
+    # directory S
+    put(sdir, 0, 2)
+    put(sdir, 4, sdir)
+    put(sdir, 24 + hash_of(b"startup-sequence") * 4, 16)
+    name(sdir, b"S")
+    put(sdir, 512 - 12, root)
+    put(sdir, 512 - 4, 2)                    # ST_USERDIR
+    checksum(sdir)
+    # root
+    put(root, 0, 2)
+    put(root, 12, 72)
+    put(root, 24 + hash_of(b"README") * 4, 11)
+    put(root, 24 + hash_of(b"S") * 4, sdir)
+    name(root, b"TestDisk")
+    put(root, 512 - 4, 1)                    # ST_ROOT
+    checksum(root)
+    (out / "TEST.ADF").write_bytes(bytes(image))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QMap>
 #include <QSettings>
 
 #include <memory>
@@ -48,6 +49,10 @@ private:
     void selectRootFolder();
     void exportCurrentFile();
     void showAbout();
+    // Amiga disk images: extracted into the temporary folder and shown as an
+    // extra top-level folder of the tree.
+    void openAdf(const QString &path);
+    QTreeWidgetItem *addAdfTreeItem(const QString &adfPath, const QString &folder);
 
     QTreeWidget *m_folderView = nullptr;
     QTableWidget *m_fileView = nullptr;
@@ -65,4 +70,5 @@ private:
     std::unique_ptr<Plugin> m_plugin;
     QSettings m_settings;
     float m_zoom = 1.0f;
+    QMap<QString, QString> m_adfFolders; // disk image -> extraction folder
 };

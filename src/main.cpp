@@ -2,6 +2,8 @@
 
 #include "core/container.h"
 #include "core/daxfile.h"
+#include "core/adf.h"
+#include "core/tempfolder.h"
 #include "parse/audio.h"
 #include "parse/smus.h"
 #include "parse/slb.h"
@@ -89,6 +91,29 @@ int main(int argc, char *argv[])
 
     if (argc >= 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--version")) {
         qInfo().noquote() << QApplication::applicationVersion();
+        return 0;
+    }
+
+    // Lists the files of an Amiga disk image: --adf FILE [OUTDIR] (with
+    // OUTDIR the files are also extracted there).
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--adf")) {
+        AdfImage image;
+        if (!image.load(QString::fromLocal8Bit(argv[2]))) {
+            qWarning().noquote() << image.errorString();
+            return 1;
+        }
+        qInfo().noquote() << QStringLiteral("%1 volume \"%2\", %3 blocks, %4 entries")
+                                 .arg(image.fileSystem(), image.volumeName())
+                                 .arg(image.blockCount()).arg(image.entries().size());
+        for (const AdfEntry &e : image.entries())
+            qInfo().noquote() << (e.isDirectory ? QStringLiteral("%1/").arg(e.path)
+                                                : QStringLiteral("%1  %2").arg(e.path).arg(e.size));
+        if (argc >= 4 && !image.extractTo(QString::fromLocal8Bit(argv[3]))) {
+            qWarning().noquote() << image.errorString();
+            return 1;
+        }
+        for (const QString &w : image.warnings())
+            qWarning().noquote() << "warning:" << w;
         return 0;
     }
 
@@ -351,6 +376,9 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // Temporary folder for the extracted disk images: emptied now, deleted
+    // when main returns.
+    TempFolder::Scope tempFolder;
     MainWindow window;
     window.show();
 

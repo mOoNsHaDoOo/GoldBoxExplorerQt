@@ -15,6 +15,8 @@ add_executable(gbexplorer
     src/core/daxfile.cpp
     src/core/game.cpp
     src/core/container.cpp
+    src/core/adf.cpp
+    src/core/tempfolder.cpp
 
     src/dax/palette.cpp
     src/dax/renderblocks.cpp
@@ -114,6 +116,16 @@ if(BUILD_TESTING)
         set_tests_properties(smoke_iff_inst PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              TIMEOUT 10)
+    endif()
+
+    # Amiga disk image: list and extract (--adf FILE OUTDIR).
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.ADF")
+        add_test(NAME adf_extract
+                 COMMAND gbexplorer --adf "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.ADF"
+                         "${CMAKE_CURRENT_BINARY_DIR}/adf_test_out")
+        set_tests_properties(adf_extract PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             PASS_REGULAR_EXPRESSION "S/startup-sequence  11")
     endif()
 
     # Death Knights of Krynn / Pool of Radiance record viewers.

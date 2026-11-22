@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 
 #include "ExportDialog.h"
+#include "core/adf.h"
+#include "core/tempfolder.h"
 #include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -21,12 +23,14 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QTableWidget>
+#include <QTimer>
 #include <QToolBar>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -321,7 +325,61 @@ void MainWindow::initDirectory(const QString &path)
     m_folderView->addTopLevelItem(root);
     root->setExpanded(true);
     addDirectories(root, absolute);
+    for (auto it = m_adfFolders.cbegin(); it != m_adfFolders.cend(); ++it)
+        addAdfTreeItem(it.key(), it.value());
     m_folderView->setCurrentItem(root);
+}
+
+QTreeWidgetItem *MainWindow::addAdfTreeItem(const QString &adfPath, const QString &folder)
+{
+    auto *item = new QTreeWidgetItem(
+        QStringList(QStringLiteral("[ADF] ") + QFileInfo(adfPath).fileName().toUpper()));
+    item->setData(0, Qt::UserRole, folder);
+    item->setToolTip(0, QStringLiteral("%1\nextracted to %2").arg(adfPath, folder));
+    new QTreeWidgetItem(item);
+    m_folderView->addTopLevelItem(item);
+    return item;
+}
+
+void MainWindow::openAdf(const QString &path)
+{
+    const QString key = QFileInfo(path).absoluteFilePath();
+    QString folder = m_adfFolders.value(key);
+    if (folder.isEmpty() || !QDir(folder).exists()) {
+        AdfImage image;
+        if (!image.load(path)) {
+            auto *message = new QPlainTextEdit(QStringLiteral("%1\n\n%2")
+                                                   .arg(QFileInfo(path).fileName(), image.errorString()));
+            message->setReadOnly(true);
+            showViewer(message);
+            return;
+        }
+        const QString base = QFileInfo(path).completeBaseName();
+        folder = QDir(TempFolder::path()).filePath(base);
+        for (int n = 2; QFileInfo::exists(folder); ++n)
+            folder = QDir(TempFolder::path()).filePath(QStringLiteral("%1 (%2)").arg(base).arg(n));
+        if (!image.extractTo(folder)) {
+            QMessageBox::warning(this, QStringLiteral("Disk image"), image.errorString());
+            return;
+        }
+        m_adfFolders.insert(key, folder);
+        statusBar()->showMessage(QStringLiteral("%1: %2 volume \"%3\", %4 entries%5")
+                                     .arg(QFileInfo(path).fileName(), image.fileSystem(), image.volumeName())
+                                     .arg(image.entries().size())
+                                     .arg(image.warnings().isEmpty()
+                                              ? QString()
+                                              : QStringLiteral(", %1 warning(s)").arg(image.warnings().size())),
+                                 10000);
+        addAdfTreeItem(key, folder);
+    }
+    for (int i = 0; i < m_folderView->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = m_folderView->topLevelItem(i);
+        if (item->data(0, Qt::UserRole).toString() == folder) {
+            item->setExpanded(true);
+            m_folderView->setCurrentItem(item); // loads the folder into the file list
+            return;
+        }
+    }
 }
 
 void MainWindow::addDirectories(QTreeWidgetItem *item, const QString &path)
@@ -395,6 +453,12 @@ void MainWindow::loadFile(const QString &path)
     m_currentFile = path;
     m_plugin.reset();
     showViewer(nullptr);
+
+    if (AdfImage::looksLikeAdf(path)) {
+        // Changing folder rebuilds the file list: leave the selection signal first.
+        QTimer::singleShot(0, this, [this, path] { openAdf(path); });
+        return;
+    }
 
     m_plugin = PluginFactory::create(path);
     if (!m_plugin)
