@@ -25,11 +25,14 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.57**.
+Current version: **0.90**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
-*Pool of Radiance*, and *Death Knights of Krynn* installations. The same CMake
+*Pool of Radiance*, and *Death Knights of Krynn* installations. The Amiga disks
+of *Curse of the Azure Bonds*, *Secret of the Silver Blades*, *Pools of
+Darkness* and *Dark Queen of Krynn* open too, including their compressed GLIB
+picture libraries (docs/AMIGA_GLIB.md, docs/DKK_POR.md). The same CMake
 project is portable to Linux and Windows.
 
 ### Implemented
