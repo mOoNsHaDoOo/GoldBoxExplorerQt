@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.94.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.95.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,6 +18,8 @@ add_executable(gbexplorer
     src/core/adf.cpp
     src/core/tempfolder.cpp
     src/core/zip.cpp
+    src/core/m68k.cpp
+    src/core/paula.cpp
 
     src/dax/palette.cpp
     src/dax/renderblocks.cpp
@@ -47,6 +49,7 @@ add_executable(gbexplorer
     src/parse/record_layouts_gen.cpp
     src/parse/slb.cpp
     src/parse/mxmusic.cpp
+    src/parse/exemusic.cpp
     src/parse/krynn_fields.cpp
     src/parse/krynn_records.cpp
 
@@ -147,6 +150,21 @@ if(BUILD_TESTING)
         set_tests_properties(mx_render PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              PASS_REGULAR_EXPRESSION "song 1: 7 events, 4 notes, tempo 120, channels 0")
+    endif()
+
+    # SLB song bank: one synthetic song played with the sequencer rules.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.SLB")
+        add_test(NAME slb_render
+                 COMMAND gbexplorer --slb "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.SLB" 1
+                         "${CMAKE_CURRENT_BINARY_DIR}/slb_test.wav")
+        set_tests_properties(slb_render PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             PASS_REGULAR_EXPRESSION "song 1: tempo 24576 \\(factor 107\\), volume 127, 2 tracks, 4 notes")
+        add_test(NAME smoke_TEST.SLB
+                 COMMAND gbexplorer --smoke "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.SLB")
+        set_tests_properties(smoke_TEST.SLB PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             TIMEOUT 10)
     endif()
 
     # Death Knights of Krynn / Pool of Radiance record viewers.

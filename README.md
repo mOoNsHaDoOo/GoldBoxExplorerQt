@@ -25,7 +25,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.94**.
+Current version: **0.95**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -51,8 +51,9 @@ project is portable to Linux and Windows.
 | Amiga audio | 8SVX/16SV IFF audio with waveform preview, metadata, playback, and WAV export; extensionless sounds detected by content |
 | Amiga DAX | Big-endian index + ByteKiller depacker; 4-plane planar images, ECL, GEO, WALLDEF, item/monster data, and the `pic`/`sprit`/`final` prefix variant |
 | Amiga music/instruments | IFF inspector for `FORM INST` (e.g. `Sound/cast4`), `FORM SMUS` (`Sound/krynn`) with sample-bank-driven playback, embedded sound banks (`Sound/soundData`), and referenced sample playback |
-| Amiga song banks | `SLBR` `.SLB` files (Curse/Secret): song table, note/command event view, piano-roll rendering, one Music sub-tab per song with playback/WAV export; `--slb` CLI |
-| Music-X modules | `MXTX` `.MX` files (Secret): header summary, six-byte note/velocity/duration sequence, piano roll, 32-byte instrument wavetables, wavetable-driven preview, waveform plot, hex; `--mxtx` CLI |
+| Amiga song banks | `SLBR` `.SLB` files (`CURSE.SLB`, `SECRET.SLB`, `MUSIC.SLB`): the music of Curse of the Azure Bonds, and the fallback music of Secret, Pools and Dark Queen. Songs of up to five tracks played with the game's own sequencer and sawtooth synth on emulated Paula (checked against the original code run in the 68000 interpreter), track event tables, piano roll, playback/WAV export; `--slb FILE [SONG OUT.wav]` |
+| MX music | `MXTX` `.MX` files (Secret, Pools, Dark Queen): songs played with the reconstructed MX driver (sampled instruments, envelopes, four Paula voices), event tables, instruments, samples, hex; `--mx-render FILE SONG OUT.wav` |
+| Executable music | Pool of Radiance `program`: a Music tab plays its six songs by running Wally Beben's original player in a built-in 68000 interpreter, with Paula emulated; `--exe-music FILE [SONG OUT.wav]` |
 | Save files | Amiga `CHRDATA*.sav` character records, `CHRDATA*.swg` equipment slots, `CHRDATA*.fx` effect records, and `SAVGAM*.DAT` summaries |
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
@@ -312,7 +313,7 @@ The root folder is stored with `QSettings` under the `GoldBoxExplorer` /
 - The Amiga Pool DAX image palette is not stored in the image blocks; the
   preview uses the 16-colour EGA palette, so the shapes are correct but the
   colours are an approximation of the Amiga palette.
-- Amiga hunk executables are only listed (hunk types and sizes), not
+- Amiga hunk executables are listed (hunk types and sizes), not
   disassembled.
 - SMUS playback is a wavetable preview, not a cycle-accurate Paula/Amiga
   music-driver emulation. It follows the score tempo, notes, instruments, and

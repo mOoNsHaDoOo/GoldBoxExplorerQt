@@ -1,5 +1,7 @@
 #include "plugins/amigaplugins.h"
 
+#include "parse/exemusic.h"
+#include "widgets/audioview.h"
 #include "widgets/hexview.h"
 
 #include <QFile>
@@ -229,6 +231,18 @@ QWidget *AmigaSystemPlugin::createViewer(const PluginParameters &parameters)
     auto *tabs = new QTabWidget;
 
     if (isHunkExecutable(d)) {
+        // music players of the Gold Box executables, run from their own code
+        ExeMusic music;
+        if (ExeMusic::detect(d) != ExeMusic::None && music.load(d)) {
+            auto *songs = new QTabWidget;
+            for (int i = 0; i < music.songNames().size(); ++i) {
+                const AudioSample audio = music.render(i);
+                QWidget *page = audio.valid ? static_cast<QWidget *>(new AudioView(audio))
+                                            : textView(QStringLiteral("The song does not play: %1").arg(audio.error));
+                songs->addTab(page, QStringLiteral("%1. %2").arg(i + 1).arg(music.songNames().at(i)));
+            }
+            tabs->addTab(songs, QStringLiteral("Music"));
+        }
         tabs->addTab(textView(describeHunks(d)), QStringLiteral("Hunks"));
         tabs->addTab(new HexView(d), QStringLiteral("Hex"));
         return tabs;

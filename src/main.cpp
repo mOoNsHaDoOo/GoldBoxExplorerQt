@@ -9,6 +9,7 @@
 #include "parse/smus.h"
 #include "parse/slb.h"
 #include "parse/mxmusic.h"
+#include "parse/exemusic.h"
 #include "parse/ecl.h"
 #include "parse/ecl_disasm.h"
 #include "parse/ecl_basic.h"
@@ -85,7 +86,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.94"));
+    QApplication::setApplicationVersion(QStringLiteral("0.95"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -151,6 +152,31 @@ int main(int argc, char *argv[])
                                      .arg([&] { QStringList c; for (int x : song.channels) c << QString::number(x); return c.join(QLatin1Char(',')); }());
         if (argc >= 5) {
             const AudioSample out = mx.render(QString::fromLocal8Bit(argv[3]).toInt() - 1);
+            QFile file(QString::fromLocal8Bit(argv[4]));
+            if (!out.valid || !file.open(QIODevice::WriteOnly)) {
+                qWarning().noquote() << "render failed" << out.error;
+                return 1;
+            }
+            file.write(out.toWav());
+            qInfo().noquote() << QStringLiteral("%1 ms").arg(out.durationMs());
+        }
+        return 0;
+    }
+
+    // Plays the music built into an Amiga executable (Pool of Radiance
+    // `program`): --exe-music FILE [SONG OUT.wav] (SONG from 1).
+    if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--exe-music")) {
+        QFile in(QString::fromLocal8Bit(argv[2]));
+        ExeMusic music;
+        if (!in.open(QIODevice::ReadOnly) || !music.load(in.readAll())) {
+            qWarning().noquote() << "no music:" << music.errorString();
+            return 1;
+        }
+        qInfo().noquote() << music.playerName();
+        for (int i = 0; i < music.songNames().size(); ++i)
+            qInfo().noquote() << QStringLiteral("song %1: %2").arg(i + 1).arg(music.songNames().at(i));
+        if (argc >= 5) {
+            const AudioSample out = music.render(QString::fromLocal8Bit(argv[3]).toInt() - 1);
             QFile file(QString::fromLocal8Bit(argv[4]));
             if (!out.valid || !file.open(QIODevice::WriteOnly)) {
                 qWarning().noquote() << "render failed" << out.error;
@@ -306,6 +332,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // Lists the songs of an SLB song bank: --slb FILE [SONG OUT.wav] (SONG from 1).
     if (argc >= 3 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--slb")) {
         SlbFile file(QString::fromLocal8Bit(argv[2]));
         if (!file.isValid()) {
@@ -313,24 +340,24 @@ int main(int argc, char *argv[])
             return 1;
         }
         qInfo().noquote() << "SLB songs:" << file.songs().size();
-        for (const SlbSong &song : file.songs()) {
-            const AudioSample sample = SlbFile::synthesize(song);
-            qInfo().noquote() << QStringLiteral("  song %1: 0x%2..0x%3 loop 0x%4 events %5 notes %6 units %7 duration %8 ms")
-                                     .arg(song.index + 1)
-                                     .arg(song.start, 4, 16, QLatin1Char('0'))
-                                     .arg(song.end, 4, 16, QLatin1Char('0'))
-                                     .arg(song.loopPoint, 4, 16, QLatin1Char('0'))
-                                     .arg(song.events.size())
-                                     .arg(song.noteCount)
-                                     .arg(song.totalUnits)
-                                     .arg(sample.durationMs());
-        }
-        if (!file.songs().isEmpty()) {
-            const AudioSample sample = SlbFile::synthesize(file.songs().first());
-            QFile output(QStringLiteral("/tmp/gbexplorer_slb.wav"));
-            if (output.open(QIODevice::WriteOnly))
-                output.write(sample.toWav());
-            qInfo().noquote() << "wrote /tmp/gbexplorer_slb.wav";
+        for (const SlbSong &song : file.songs())
+            qInfo().noquote() << QStringLiteral("  song %1: tempo %2 (factor %3), volume %4, %5 tracks, %6 notes")
+                                     .arg(song.index + 1).arg(song.tempo).arg(song.tempoFactor())
+                                     .arg(song.volume).arg(song.tracks.size()).arg(song.noteCount());
+        if (argc >= 5) {
+            const int index = QString::fromLocal8Bit(argv[3]).toInt() - 1;
+            if (index < 0 || index >= file.songs().size()) {
+                qWarning().noquote() << "no such song";
+                return 1;
+            }
+            const AudioSample sample = SlbFile::render(file.songs().at(index));
+            QFile output(QString::fromLocal8Bit(argv[4]));
+            if (!sample.valid || !output.open(QIODevice::WriteOnly)) {
+                qWarning().noquote() << "render failed" << sample.error;
+                return 1;
+            }
+            output.write(sample.toWav());
+            qInfo().noquote() << QStringLiteral("%1 ms").arg(sample.durationMs());
         }
         return 0;
     }

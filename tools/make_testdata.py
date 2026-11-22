@@ -221,6 +221,7 @@ def main() -> None:
     make_adf(OUT)
     make_zip(OUT)
     make_mx(OUT)
+    make_slb(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -598,6 +599,21 @@ def make_mx(out: Path) -> None:
     data += struct.pack(">I", len(events)) + song
     data += struct.pack(">H", 1) + header + envelopes + wave
     (out / "TEST.MX").write_bytes(data)
+
+
+def make_slb(out: Path) -> None:
+    """TEST.SLB: a song bank with one song of two tracks (layout of the
+    Amiga Gold Box SLB sequencer): a melody of quarter, quarter and half
+    notes with a volume command, and a rest then a whole note."""
+    melody = bytes([0x84, 0x60, 60, 0x02, 64, 0x02, 67, 0x01, 0xFF, 0x00])
+    bass = bytes([0x80, 0x01, 48, 0x01, 0xFF, 0x00])
+    tracks = [melody, bass]
+    offsets = [0, len(melody)] + [0] * 3
+    song = struct.pack(">HBB5H", 0x6000, 0x7F, len(tracks), *offsets) + b"".join(tracks)
+    table = struct.pack(">HH", 0, len(song))
+    size = 10 + len(table) + len(song)
+    data = b"SLBR" + struct.pack(">IBB", size, 1, 0) + table + song
+    (out / "TEST.SLB").write_bytes(data)
 
 
 if __name__ == "__main__":

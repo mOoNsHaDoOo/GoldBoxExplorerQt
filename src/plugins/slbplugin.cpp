@@ -4,7 +4,6 @@
 #include "widgets/audioview.h"
 #include "widgets/hexview.h"
 
-#include <QComboBox>
 #include <QFile>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -17,6 +16,8 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace {
 
@@ -51,188 +52,143 @@ QString noteName(int note)
         .arg(note / 12 - 1);
 }
 
-QString eventType(const SlbEvent &event)
+QString eventText(const SlbEvent &e)
 {
-    if (event.end)
-        return QStringLiteral("End");
-    if (event.note)
-        return QStringLiteral("Note");
-    if (event.rest)
-        return QStringLiteral("Rest");
-    switch (event.command) {
-    case 0x81: return QStringLiteral("Instrument");
-    case 0x82: return QStringLiteral("Volume");
-    case 0x83: return QStringLiteral("Transpose");
-    case 0x84: return QStringLiteral("Envelope");
-    case 0x87: return QStringLiteral("Pattern");
-    case 0x88: return QStringLiteral("Tempo");
-    default: return QStringLiteral("Command");
-    }
+    const int length = SlbFile::lengthOf(e.data);
+    if (e.isEnd())
+        return QStringLiteral("end of track");
+    if (e.isNote())
+        return QStringLiteral("note %1 (%2), length %3%4")
+            .arg(noteName(e.code)).arg(e.code).arg(length).arg((e.data & 0x40) ? QStringLiteral(", tied") : QString());
+    if (e.isRest())
+        return QStringLiteral("rest, length %1").arg(length);
+    if (e.code == 0x81)
+        return QStringLiteral("voice off, instrument %1").arg(e.data);
+    if (e.code == 0x84)
+        return QStringLiteral("volume %1").arg(e.data);
+    if (e.code <= 0x80)
+        return QStringLiteral("%1 with bit 7 of the length set (skipped)").arg(e.code == 0x80 ? QStringLiteral("rest") : noteName(e.code));
+    return QStringLiteral("command $%1 %2 (ignored)").arg(e.code, 2, 16, QLatin1Char('0')).arg(e.data);
 }
 
 QWidget *makeSongsView(const QVector<SlbSong> &songs)
 {
-    auto *table = makeTable({QStringLiteral("#"), QStringLiteral("Start"),
-                             QStringLiteral("End"), QStringLiteral("Loop"),
-                             QStringLiteral("Events"), QStringLiteral("Notes"),
-                             QStringLiteral("Units")});
+    auto *table = makeTable({QStringLiteral("#"), QStringLiteral("Offset"), QStringLiteral("Tempo"),
+                             QStringLiteral("Volume"), QStringLiteral("Tracks"), QStringLiteral("Notes")});
     table->setRowCount(songs.size());
     for (int row = 0; row < songs.size(); ++row) {
         const SlbSong &song = songs.at(row);
         table->setItem(row, 0, new QTableWidgetItem(QString::number(song.index + 1)));
-        table->setItem(row, 1, new QTableWidgetItem(
-            QStringLiteral("0x%1").arg(song.start, 4, 16, QLatin1Char('0'))));
-        table->setItem(row, 2, new QTableWidgetItem(
-            QStringLiteral("0x%1").arg(song.end, 4, 16, QLatin1Char('0'))));
-        table->setItem(row, 3, new QTableWidgetItem(
-            song.loopPoint > 0
-                ? QStringLiteral("0x%1").arg(song.loopPoint, 4, 16, QLatin1Char('0'))
-                : QStringLiteral("-")));
-        table->setItem(row, 4, new QTableWidgetItem(QString::number(song.events.size())));
-        table->setItem(row, 5, new QTableWidgetItem(QString::number(song.noteCount)));
-        table->setItem(row, 6, new QTableWidgetItem(QString::number(song.totalUnits)));
+        table->setItem(row, 1, new QTableWidgetItem(QStringLiteral("0x%1").arg(song.offset, 4, 16, QLatin1Char('0'))));
+        table->setItem(row, 2, new QTableWidgetItem(QStringLiteral("$%1 (factor %2)")
+                                                        .arg(song.tempo, 4, 16, QLatin1Char('0')).arg(song.tempoFactor())));
+        table->setItem(row, 3, new QTableWidgetItem(QString::number(song.volume)));
+        table->setItem(row, 4, new QTableWidgetItem(QString::number(song.tracks.size())));
+        table->setItem(row, 5, new QTableWidgetItem(QString::number(song.noteCount())));
     }
     table->resizeColumnsToContents();
     return table;
 }
 
-QTableWidget *makeEventsTable(const SlbSong &song)
+QWidget *makeEventsView(const SlbSong &song)
 {
-    auto *table = makeTable({QStringLiteral("Offset"), QStringLiteral("Type"),
-                             QStringLiteral("Note"), QStringLiteral("Duration"),
-                             QStringLiteral("Raw")});
-    table->setRowCount(song.events.size());
-    for (int row = 0; row < song.events.size(); ++row) {
-        const SlbEvent &event = song.events.at(row);
-        table->setItem(row, 0, new QTableWidgetItem(
-            QStringLiteral("0x%1").arg(event.offset, 4, 16, QLatin1Char('0'))));
-        table->setItem(row, 1, new QTableWidgetItem(eventType(event)));
-        table->setItem(row, 2, new QTableWidgetItem(
-            event.note ? noteName(event.command) : QString()));
-        table->setItem(row, 3, new QTableWidgetItem(
-            (event.note || event.rest || event.end)
-                ? QString::number(event.duration)
-                : QString()));
-        table->setItem(row, 4, new QTableWidgetItem(
-            QStringLiteral("%1 %2")
-                .arg(event.command, 2, 16, QLatin1Char('0'))
-                .arg(event.data, 2, 16, QLatin1Char('0'))));
+    auto *tabs = new QTabWidget;
+    for (int v = 0; v < song.tracks.size(); ++v) {
+        const SlbTrack &track = song.tracks.at(v);
+        auto *table = makeTable({QStringLiteral("Offset"), QStringLiteral("Bytes"), QStringLiteral("Event")});
+        table->setRowCount(track.events.size());
+        for (int row = 0; row < track.events.size(); ++row) {
+            const SlbEvent &e = track.events.at(row);
+            table->setItem(row, 0, new QTableWidgetItem(QStringLiteral("0x%1").arg(e.offset, 4, 16, QLatin1Char('0'))));
+            table->setItem(row, 1, new QTableWidgetItem(QStringLiteral("%1 %2")
+                                                            .arg(e.code, 2, 16, QLatin1Char('0'))
+                                                            .arg(e.data, 2, 16, QLatin1Char('0'))));
+            table->setItem(row, 2, new QTableWidgetItem(eventText(e)));
+        }
+        table->resizeColumnsToContents();
+        tabs->addTab(table, QStringLiteral("Track %1").arg(v + 1));
     }
-    table->resizeColumnsToContents();
-    return table;
+    return tabs;
 }
 
 QImage renderPianoRoll(const SlbSong &song)
 {
-    constexpr int pxPerUnit = 3;
+    constexpr double pxPerUnit = 0.5;   // 5 ms units
     constexpr int noteHeight = 4;
-    constexpr int minNote = 24;
-    constexpr int maxNote = 96;
-    const int width = qMax(320, song.totalUnits * pxPerUnit + 20);
+    int minNote = 127, maxNote = 0;
+    qint64 total = 0;
+    for (const SlbTrack &track : song.tracks) {
+        qint64 t = 0;
+        for (const SlbEvent &e : track.events) {
+            if (e.isNote()) {
+                minNote = std::min(minNote, static_cast<int>(e.code));
+                maxNote = std::max(maxNote, static_cast<int>(e.code));
+            }
+            if (e.isNote() || e.isRest())
+                t += SlbFile::lengthOf(e.data) / std::max(1, song.tempoFactor());
+        }
+        total = std::max(total, t);
+    }
+    if (minNote > maxNote) {
+        minNote = 48;
+        maxNote = 72;
+    }
+    minNote -= 2;
+    maxNote += 2;
+    const int width = std::max(320, static_cast<int>(total * pxPerUnit) + 20);
     const int height = (maxNote - minNote + 1) * noteHeight + 20;
-
-    QImage image(width, height, QImage::Format_ARGB32);
+    QImage image(std::min(width, 30000), height, QImage::Format_ARGB32);
     image.fill(QColor(28, 28, 32));
-
     QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing, false);
-
-    // Octave lines and a beat grid.
     for (int note = minNote; note <= maxNote; ++note) {
         if (note % 12 != 0)
             continue;
-        const int y = 10 + (maxNote - note) * noteHeight;
         painter.setPen(QColor(55, 55, 62));
+        const int y = 10 + (maxNote - note) * noteHeight;
         painter.drawLine(0, y, width, y);
     }
-    for (int unit = 0; unit < song.totalUnits; unit += 16) {
-        const int x = 10 + unit * pxPerUnit;
-        painter.setPen(QColor(45, 45, 52));
-        painter.drawLine(x, 0, x, height);
-    }
-
-    int time = 0;
-    for (const SlbEvent &event : song.events) {
-        const int units = qMax(1, event.duration);
-        if (event.note) {
-            const int note = qBound(minNote, static_cast<int>(event.command), maxNote);
-            const int x = 10 + time * pxPerUnit;
-            const int w = qMax(2, units * pxPerUnit - 1);
-            const int y = 10 + (maxNote - note) * noteHeight;
-            const bool tied = (event.data & 0x40) != 0;
-            painter.fillRect(x, y, w, noteHeight - 1,
-                             tied ? QColor(255, 196, 64) : QColor(110, 220, 140));
-            time += units;
-        } else if (event.rest) {
-            time += units;
+    static const QColor colors[5] = {QColor(110, 220, 140), QColor(110, 170, 255), QColor(255, 196, 64),
+                                     QColor(240, 120, 160), QColor(200, 200, 200)};
+    for (int v = 0; v < song.tracks.size(); ++v) {
+        qint64 t = 0;
+        for (const SlbEvent &e : song.tracks.at(v).events) {
+            if (!e.isNote() && !e.isRest())
+                continue;
+            const qint64 units = SlbFile::lengthOf(e.data) / std::max(1, song.tempoFactor());
+            if (e.isNote()) {
+                const int x = 10 + static_cast<int>(t * pxPerUnit);
+                const int w = std::max(2, static_cast<int>(units * pxPerUnit) - 1);
+                const int y = 10 + (maxNote - e.code) * noteHeight;
+                painter.fillRect(x, y, w, noteHeight - 1, colors[v % 5]);
+            }
+            t += units;
         }
     }
     painter.end();
     return image;
 }
 
-QWidget *makePianoRollTab(const QVector<SlbSong> &songs)
+// A song tab: the rendered music on top, its tracks and piano roll below.
+QWidget *makeSongTab(const SlbSong &song)
 {
-    auto *widget = new QWidget;
-    auto *layout = new QVBoxLayout(widget);
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
-
-    auto *combo = new QComboBox;
-    for (const SlbSong &song : songs)
-        combo->addItem(QStringLiteral("Song %1").arg(song.index + 1));
-    layout->addWidget(combo);
-
-    auto *scroll = new QScrollArea;
-    scroll->setWidgetResizable(false);
-    auto *label = new QLabel;
-    scroll->setWidget(label);
-    layout->addWidget(scroll, 1);
-
-    auto update = [combo, label, songs]() {
-        const int index = combo->currentIndex();
-        if (index < 0 || index >= songs.size())
-            return;
-        label->setPixmap(QPixmap::fromImage(renderPianoRoll(songs.at(index))));
-        label->resize(label->pixmap().size());
-    };
-    QObject::connect(combo, &QComboBox::currentIndexChanged, label, update);
-    if (!songs.isEmpty())
-        update();
-    return widget;
-}
-
-QWidget *makeMusicTab(const QVector<SlbSong> &songs)
-{
-    auto *tabs = new QTabWidget;
-    for (const SlbSong &song : songs) {
-        auto *page = new QWidget;
-        auto *layout = new QVBoxLayout(page);
-        layout->setContentsMargins(0, 0, 0, 0);
-        tabs->addTab(page, QStringLiteral("Song %1").arg(song.index + 1));
-    }
-
-    // Synthesize a song only when its sub-tab is opened; a full 60-second
-    // square-wave preview is several megabytes of PCM.  The AudioView is
-    // added inside the existing page so the tab labels never change.
-    auto load = [tabs, songs](int index) {
-        if (index < 0 || index >= songs.size())
-            return;
-        QWidget *page = tabs->widget(index);
-        if (!page || page->property("loaded").toBool())
-            return;
-        auto *layout = qobject_cast<QVBoxLayout *>(page->layout());
-        if (!layout)
-            return;
-        const AudioSample sample = SlbFile::synthesize(songs.at(index));
-        if (!sample.valid)
-            return;
+    const AudioSample sample = SlbFile::render(song);
+    if (sample.valid)
         layout->addWidget(new AudioView(sample));
-        page->setProperty("loaded", true);
-    };
-    QObject::connect(tabs, &QTabWidget::currentChanged, tabs, load);
-    if (!songs.isEmpty())
-        load(0);
-    return tabs;
+    else
+        layout->addWidget(messageView(QStringLiteral("The song does not play: %1").arg(sample.error)));
+    auto *inner = new QTabWidget;
+    inner->addTab(makeEventsView(song), QStringLiteral("Tracks"));
+    auto *scroll = new QScrollArea;
+    auto *label = new QLabel;
+    label->setPixmap(QPixmap::fromImage(renderPianoRoll(song)));
+    label->resize(label->pixmap().size());
+    scroll->setWidget(label);
+    inner->addTab(scroll, QStringLiteral("Piano roll"));
+    layout->addWidget(inner, 1);
+    return page;
 }
 
 } // namespace
@@ -252,65 +208,51 @@ QWidget *SlbPlugin::createViewer(const PluginParameters &parameters)
 {
     SlbFile file(parameters.filename);
     if (!file.isValid())
-        return messageView(QStringLiteral("Unable to read this SLB song bank:\n%1")
-                               .arg(file.errorString()));
+        return messageView(QStringLiteral("Unable to read this SLB song bank:\n%1").arg(file.errorString()));
 
     const QVector<SlbSong> songs = file.songs();
     auto *tabs = new QTabWidget;
 
     QString summary;
-    summary += QStringLiteral("File: %1\n").arg(QFileInfo(parameters.filename).fileName());
-    summary += QStringLiteral("Type: SLBR Amiga song bank\n");
-    summary += QStringLiteral("Size: %1 bytes\n").arg(file.fileSize());
+    summary += QStringLiteral("File: %1 (%2 bytes)\n").arg(QFileInfo(parameters.filename).fileName()).arg(file.fileSize());
     summary += QStringLiteral("Songs: %1\n\n").arg(songs.size());
-    summary += QStringLiteral("The song streams use two-byte events: note/command + data.\n");
-    summary += QStringLiteral("Note durations are stored in the low six bits; 0x40 marks a tied note.\n");
-    summary += QStringLiteral("0xff 0xff terminates each song.\n\n");
     summary += QStringLiteral(
-        "Note: no Amiga executable loads the .SLB files (Curse of the Azure Bonds,\n"
-        "Secret of the Silver Blades, Dark Queen of Krynn): they are left over from\n"
-        "the PC versions, one-voice tunes for the PC speaker. The preview plays them\n"
-        "with a square wave. The Amiga music is in the .MX files.\n");
+        "SLB song bank of the Amiga Gold Box games. Curse of the Azure Bonds plays its\n"
+        "music from CURSE.SLB; Dark Queen of Krynn loads MUSIC.SLB when the sampled\n"
+        ".MX music is not loaded (Secret of the Silver Blades links the same code).\n\n"
+        "Each song has up to five tracks of two-byte events (note or rest with a\n"
+        "length, volume and voice-off commands, $FF at the end); the song starts again\n"
+        "when every track has ended. The game's sequencer runs every 10 ms and plays\n"
+        "the notes on Paula with a sawtooth wave, the rules reconstructed from the\n"
+        "Curse executable (the four games link the same code). The music tabs play\n"
+        "one pass and the start of the next, fading out.\n");
     auto *summaryView = new QPlainTextEdit(summary);
     summaryView->setReadOnly(true);
     summaryView->setFont(QFont(QStringLiteral("Courier New"), 10));
     tabs->addTab(summaryView, QStringLiteral("Summary"));
-
     tabs->addTab(makeSongsView(songs), QStringLiteral("Songs"));
 
-    auto *eventsWidget = new QWidget;
-    auto *eventsLayout = new QVBoxLayout(eventsWidget);
-    eventsLayout->setContentsMargins(0, 0, 0, 0);
-    auto *eventsCombo = new QComboBox;
-    for (const SlbSong &song : songs)
-        eventsCombo->addItem(QStringLiteral("Song %1").arg(song.index + 1));
-    eventsLayout->addWidget(eventsCombo);
-    auto *eventsHost = new QWidget;
-    auto *eventsHostLayout = new QVBoxLayout(eventsHost);
-    eventsHostLayout->setContentsMargins(0, 0, 0, 0);
-    eventsLayout->addWidget(eventsHost, 1);
-    auto updateEvents = [eventsCombo, eventsHostLayout, songs]() {
-        while (QLayoutItem *item = eventsHostLayout->takeAt(0)) {
-            if (QWidget *old = item->widget())
-                old->deleteLater();
-            delete item;
-        }
-        const int index = eventsCombo->currentIndex();
-        if (index >= 0 && index < songs.size())
-            eventsHostLayout->addWidget(makeEventsTable(songs.at(index)));
-    };
-    QObject::connect(eventsCombo, &QComboBox::currentIndexChanged, eventsHost, updateEvents);
-    if (!songs.isEmpty())
-        updateEvents();
-    tabs->addTab(eventsWidget, QStringLiteral("Events"));
-
-    tabs->addTab(makePianoRollTab(songs), QStringLiteral("Piano Roll"));
-    tabs->addTab(makeMusicTab(songs), QStringLiteral("Music"));
+    // build a song tab only when it is opened (rendering takes a moment)
+    QVector<QWidget *> pages;
+    for (const SlbSong &song : songs) {
+        auto *page = new QWidget;
+        page->setLayout(new QVBoxLayout);
+        page->layout()->setContentsMargins(0, 0, 0, 0);
+        pages.append(page);
+        tabs->addTab(page, QStringLiteral("Song %1").arg(song.index + 1));
+    }
+    QObject::connect(tabs, &QTabWidget::currentChanged, tabs, [tabs, pages, songs](int index) {
+        const int song = pages.indexOf(tabs->widget(index));
+        if (song < 0 || pages.at(song)->property("loaded").toBool())
+            return;
+        pages.at(song)->layout()->addWidget(makeSongTab(songs.at(song)));
+        pages.at(song)->setProperty("loaded", true);
+    });
 
     QFile raw(parameters.filename);
     if (raw.open(QIODevice::ReadOnly))
         tabs->addTab(new HexView(raw.readAll()), QStringLiteral("Hex"));
 
-    tabs->setCurrentIndex(1);
+    tabs->setCurrentIndex(songs.isEmpty() ? 0 : 2);
     return tabs;
 }
