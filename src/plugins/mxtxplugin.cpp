@@ -1,6 +1,6 @@
 #include "plugins/plugins.h"
 
-#include "parse/mxtx.h"
+#include "parse/mxmusic.h"
 #include "widgets/audioview.h"
 #include "widgets/hexview.h"
 
@@ -8,13 +8,12 @@
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QLabel>
-#include <QPainter>
 #include <QPlainTextEdit>
-#include <QScrollArea>
+#include <QSplitter>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
-#include <QVBoxLayout>
+#include <QtEndian>
 
 namespace {
 
@@ -40,222 +39,187 @@ QTableWidget *makeTable(const QStringList &headers)
     return table;
 }
 
+const char *const kNoteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
 QString noteName(int note)
 {
-    static const char *names[] = {"C", "C#", "D", "D#", "E", "F",
-                                  "F#", "G", "G#", "A", "A#", "B"};
-    return QStringLiteral("%1%2")
-        .arg(QString::fromLatin1(names[note % 12]))
-        .arg(note / 12 - 1);
+    return QStringLiteral("%1%2").arg(QLatin1String(kNoteNames[note % 12])).arg(note / 12 - 1);
 }
 
-QTableWidget *makeSequenceView(const MxtxFile &file)
+QString eventText(const MxEvent &e)
 {
-    auto *table = makeTable({QStringLiteral("Offset"), QStringLiteral("Time (ms)"),
-                             QStringLiteral("Note"), QStringLiteral("Velocity"),
-                             QStringLiteral("Duration")});
-    const QVector<MxtxEvent> &events = file.events();
-    table->setRowCount(events.size());
-    int time = 0;
-    for (int row = 0; row < events.size(); ++row) {
-        const MxtxEvent &event = events.at(row);
-        table->setItem(row, 0, new QTableWidgetItem(
-            QStringLiteral("0x%1").arg(event.offset, 4, 16, QLatin1Char('0'))));
-        table->setItem(row, 1, new QTableWidgetItem(QString::number(time)));
-        table->setItem(row, 2, new QTableWidgetItem(noteName(event.note)));
-        table->setItem(row, 3, new QTableWidgetItem(QString::number(event.velocity)));
-        table->setItem(row, 4, new QTableWidgetItem(QString::number(event.duration)));
-        time += event.delta;
+    if (e.status < 0x80)
+        return QStringLiteral("note %1 (%2) velocity %3 channel %4 length %5")
+            .arg(noteName(e.status)).arg(e.status).arg((e.data >> 1) & 0x78).arg(e.data & 0x0F).arg(e.word);
+    switch (e.status) {
+    case 0x80:
+        return e.word ? QStringLiteral("tempo %1 BPM, ramp over %2 ticks").arg(e.data).arg(e.word)
+                      : QStringLiteral("tempo %1 BPM").arg(e.data);
+    case 0xB0:
+        return QStringLiteral("controller %1 = %2, channel %3%4")
+            .arg(e.b4).arg(e.b5).arg(e.data & 0x0F)
+            .arg(e.b4 == 7 ? QStringLiteral(" (volume)") : e.b4 == 10 ? QStringLiteral(" (pan)") : QString());
+    case 0xC0:
+        return QStringLiteral("program %1, channel %2").arg(e.b5).arg(e.data & 0x0F);
+    case 0xE0:
+        return QStringLiteral("pitch bend %1, channel %2").arg(((e.b4 & 0x7F) << 7 | (e.b5 & 0x7F)) - 0x2000).arg(e.data & 0x0F);
+    case 0xA0:
+        return e.b4 == 1 ? QStringLiteral("signal %1 to the game").arg(e.b5)
+               : e.b4 == 2 ? QStringLiteral("repeat start, %1 times").arg(e.b5)
+               : e.b4 == 3 ? QStringLiteral("repeat end") : QStringLiteral("command %1 %2").arg(e.b4).arg(e.b5);
+    case 0xFF:
+        return QStringLiteral("end of song");
+    default:
+        return QStringLiteral("status $%1").arg(e.status, 2, 16, QLatin1Char('0'));
+    }
+}
+
+QWidget *songView(const MxMusicFile &file, const MxSong &song)
+{
+    auto *splitter = new QSplitter(Qt::Vertical);
+    const AudioSample audio = file.render(song.index);
+    if (audio.valid)
+        splitter->addWidget(new AudioView(audio));
+    else
+        splitter->addWidget(messageView(QStringLiteral("The song does not play: %1").arg(audio.error)));
+
+    auto *table = makeTable({QStringLiteral("#"), QStringLiteral("Tick"), QStringLiteral("Delta"),
+                             QStringLiteral("Bytes"), QStringLiteral("Event")});
+    table->setRowCount(song.events.size());
+    qint64 tick = 0;
+    for (int i = 0; i < song.events.size(); ++i) {
+        const MxEvent &e = song.events.at(i);
+        tick += e.delta;
+        const QByteArray raw = QByteArray(1, static_cast<char>(e.status)) + QByteArray(1, static_cast<char>(e.data))
+                               + QByteArray(1, static_cast<char>(e.delta >> 8)) + QByteArray(1, static_cast<char>(e.delta))
+                               + QByteArray(1, static_cast<char>(e.b4)) + QByteArray(1, static_cast<char>(e.b5));
+        table->setItem(i, 0, new QTableWidgetItem(QString::number(i)));
+        table->setItem(i, 1, new QTableWidgetItem(QString::number(tick)));
+        table->setItem(i, 2, new QTableWidgetItem(QString::number(e.delta)));
+        table->setItem(i, 3, new QTableWidgetItem(QString::fromLatin1(raw.toHex(' '))));
+        table->setItem(i, 4, new QTableWidgetItem(eventText(e)));
+    }
+    table->resizeColumnsToContents();
+    splitter->addWidget(table);
+    splitter->setStretchFactor(1, 1);
+    return splitter;
+}
+
+QString envelopeText(const QVector<MxEnvelopePoint> &points)
+{
+    QStringList parts;
+    for (const MxEnvelopePoint &p : points)
+        parts.append(QStringLiteral("%1 ms→%2%").arg(p.timeMs).arg(p.level * 100 / 0x8000));
+    return parts.isEmpty() ? QStringLiteral("-") : parts.join(QStringLiteral(", "));
+}
+
+QWidget *instrumentsView(const MxMusicFile &file)
+{
+    auto *table = makeTable({QStringLiteral("Id"), QStringLiteral("Tune"), QStringLiteral("Samples"),
+                             QStringLiteral("One-shot / loop"), QStringLiteral("Attack, decay"),
+                             QStringLiteral("Release")});
+    table->setRowCount(file.instruments().size());
+    for (int i = 0; i < file.instruments().size(); ++i) {
+        const MxInstrument &ins = file.instruments().at(i);
+        QStringList lengths;
+        for (const MxSample &s : ins.samples)
+            lengths.append(QStringLiteral("%1/%2").arg(s.oneShot).arg(s.loop));
+        table->setItem(i, 0, new QTableWidgetItem(QString::number(ins.id)));
+        table->setItem(i, 1, new QTableWidgetItem(QStringLiteral("%1 (%2 semitones)")
+                                                      .arg(ins.tune).arg(ins.tune / 24.0, 0, 'f', 2)));
+        table->setItem(i, 2, new QTableWidgetItem(QString::number(ins.samples.size())));
+        table->setItem(i, 3, new QTableWidgetItem(lengths.join(QStringLiteral(", "))));
+        table->setItem(i, 4, new QTableWidgetItem(envelopeText(ins.attack)));
+        table->setItem(i, 5, new QTableWidgetItem(envelopeText(ins.release)));
     }
     table->resizeColumnsToContents();
     return table;
 }
 
-QImage renderPianoRoll(const MxtxFile &file)
+// One instrument sample at the A440 playback rate of the driver, as a
+// separate sound (the loop part repeated a few times).
+AudioSample sampleSound(const MxInstrument &ins, int index)
 {
-    constexpr int minNote = 24;
-    constexpr int maxNote = 96;
-    constexpr int noteHeight = 4;
-    const int width = 2400;
-    const int height = (maxNote - minNote + 1) * noteHeight + 20;
-    QImage image(width, height, QImage::Format_ARGB32);
-    image.fill(QColor(28, 28, 32));
-
-    QPainter painter(&image);
-    for (int note = minNote; note <= maxNote; ++note) {
-        if (note % 12 != 0)
-            continue;
-        const int y = 10 + (maxNote - note) * noteHeight;
-        painter.setPen(QColor(55, 55, 62));
-        painter.drawLine(0, y, width, y);
-    }
-
-    const int totalTicks = qMax(1, file.totalTicks());
-    int time = 0;
-    for (const MxtxEvent &event : file.events()) {
-        const int x = 10 + (time * (width - 20)) / totalTicks;
-        const int w = qMax(2, (qMax(1, event.duration) * (width - 20)) / totalTicks);
-        const int note = qBound(minNote, event.note, maxNote);
-        const int y = 10 + (maxNote - note) * noteHeight;
-        painter.fillRect(x, y, w, noteHeight - 1, QColor(110, 220, 140));
-        time += event.delta;
-    }
-    painter.end();
-    return image;
-}
-
-QImage renderWavetables(const MxtxFile &file)
-{
-    const QVector<QByteArray> &waves = file.waveforms();
-    const int cellWidth = 260;
-    const int cellHeight = 180;
-    const int width = qMax(1, waves.size()) * cellWidth;
-    QImage image(width, cellHeight, QImage::Format_ARGB32);
-    image.fill(QColor(24, 24, 28));
-
-    QPainter painter(&image);
-    for (int index = 0; index < waves.size(); ++index) {
-        const QByteArray &wave = waves.at(index);
-        const int x0 = index * cellWidth + 10;
-        const int y0 = 10;
-        const int w = cellWidth - 20;
-        const int h = cellHeight - 30;
-        painter.setPen(QColor(55, 55, 62));
-        painter.drawRect(x0, y0, w, h);
-        painter.setPen(QColor(255, 196, 64));
-        int previousX = x0;
-        int previousY = y0 + h / 2;
-        for (int i = 0; i < wave.size(); ++i) {
-            const int value = static_cast<qint8>(wave.at(i));
-            const int x = x0 + (i * w) / qMax(1, wave.size() - 1);
-            const int y = y0 + h / 2 - (value * h) / 300;
-            if (i > 0)
-                painter.drawLine(previousX, previousY, x, y);
-            previousX = x;
-            previousY = y;
-        }
-        painter.setPen(QColor(200, 200, 210));
-        painter.drawText(x0 + 6, cellHeight - 8,
-                         QStringLiteral("Wave %1").arg(index));
-    }
-    painter.end();
-    return image;
-}
-
-QImage renderWaveforms(const MxtxFile &file)
-{
-    constexpr int width = 1200;
-    constexpr int height = 300;
-    QImage image(width, height, QImage::Format_ARGB32);
-    image.fill(QColor(24, 24, 28));
-
-    const QByteArray &data = file.data();
-    const int start = qBound(0, file.eventEnd(), data.size());
-    const int count = data.size() - start;
-    if (count <= 0)
-        return image;
-
-    QPainter painter(&image);
-    painter.setPen(QColor(110, 220, 140));
-    const int columns = qMin(width, count);
-    for (int x = 0; x < columns; ++x) {
-        const int begin = start + (x * count) / columns;
-        const int end = start + ((x + 1) * count) / columns;
-        int low = 255;
-        int high = 0;
-        for (int i = begin; i < end && i < data.size(); ++i) {
-            const int value = static_cast<quint8>(data.at(i));
-            low = qMin(low, value);
-            high = qMax(high, value);
-        }
-        if (low > high)
-            continue;
-        const int y1 = height - 10 - (high * (height - 20)) / 255;
-        const int y2 = height - 10 - (low * (height - 20)) / 255;
-        painter.drawLine(x, y1, x, qMax(y1 + 1, y2));
-    }
-    painter.end();
-    return image;
+    const MxSample &s = ins.samples.at(index);
+    AudioSample out;
+    out.name = QStringLiteral("Instrument %1 sample %2").arg(ins.id).arg(index + 1);
+    out.sampleRate = 16000;
+    out.channels = 1;
+    out.bits = 16;
+    QByteArray body = s.data.left(s.oneShot);
+    for (int r = 0; r < 8 && s.loop > 0 && body.size() < 64000; ++r)
+        body += s.data.mid(s.oneShot, s.loop);
+    out.pcm.resize(body.size() * 2);
+    for (int i = 0; i < body.size(); ++i)
+        qToLittleEndian<qint16>(static_cast<qint16>(static_cast<qint8>(body.at(i)) * 256), out.pcm.data() + i * 2);
+    out.frameCount = body.size();
+    out.valid = out.frameCount > 0;
+    return out;
 }
 
 } // namespace
 
 bool MxtxPlugin::isSatisfiedBy(const QString &path) const
 {
-    const QFileInfo info(path);
-    if (info.suffix().toUpper() != QStringLiteral("MX"))
-        return false;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return false;
-    return MxtxFile::looksLikeMxtx(file.read(16));
+    return MxMusicFile::looksLikeMx(file.read(16));
 }
 
 QWidget *MxtxPlugin::createViewer(const PluginParameters &parameters)
 {
-    MxtxFile file(parameters.filename);
-    if (!file.isValid())
-        return messageView(QStringLiteral("Unable to read this MXTX module:\n%1")
-                               .arg(file.errorString()));
+    QFile raw(parameters.filename);
+    if (!raw.open(QIODevice::ReadOnly))
+        return messageView(QStringLiteral("Unable to open the file."));
+    const QByteArray data = raw.readAll();
+    MxMusicFile file;
+    if (!file.parse(data))
+        return messageView(QStringLiteral("Unable to read this MXTX music file:\n%1").arg(file.errorString()));
 
     auto *tabs = new QTabWidget;
-
     QString summary;
-    summary += QStringLiteral("File: %1\n").arg(QFileInfo(parameters.filename).fileName());
-    summary += QStringLiteral("Type: Music-X MXTX module\n");
-    summary += QStringLiteral("Size: %1 bytes\n").arg(file.fileSize());
-    summary += QStringLiteral("Header word: %1\n").arg(file.tempo());
-    summary += QStringLiteral("Flags: %1\n").arg(file.flags());
-    summary += QStringLiteral("Header count: %1\n").arg(file.headerCount());
-    summary += QStringLiteral("Event stream: 0x%1..0x%2\n")
-                   .arg(file.eventStart(), 4, 16, QLatin1Char('0'))
-                   .arg(file.eventEnd(), 4, 16, QLatin1Char('0'));
-    summary += QStringLiteral("Note events: %1\n").arg(file.events().size());
-    summary += QStringLiteral("Instrument wavetables: %1 at 0x%2\n")
-                   .arg(file.waveforms().size())
-                   .arg(file.waveformStart(), 4, 16, QLatin1Char('0'));
-    summary += QStringLiteral("Total ticks: %1 (about %2 s)\n\n")
-                   .arg(file.totalTicks())
-                   .arg(file.totalTicks() / 1000.0, 0, 'f', 1);
-    summary += QStringLiteral("The sequence uses six-byte events: delta, note, velocity, duration.\n");
-    summary += QStringLiteral("The bytes after the sequence are the instrument wavetables: each is a 32-byte cycle.\n");
-    summary += QStringLiteral("The Music preview uses those cycles (high/low notes select the first two waveforms).\n");
+    summary += QStringLiteral("File: %1 (%2 bytes)\n").arg(QFileInfo(parameters.filename).fileName()).arg(data.size());
+    summary += QStringLiteral("Songs: %1, instruments: %2, velocity sensitive: %3\n\n")
+                   .arg(file.songs().size()).arg(file.instruments().size())
+                   .arg(file.velocitySensitive() ? QStringLiteral("yes") : QStringLiteral("no"));
+    for (const MxSong &song : file.songs()) {
+        QStringList channels;
+        for (int c : song.channels)
+            channels.append(QString::number(c));
+        summary += QStringLiteral("Song %1: %2 notes, %3 BPM, channels %4\n")
+                       .arg(song.index + 1).arg(song.notes).arg(song.initialTempo).arg(channels.join(QStringLiteral(", ")));
+    }
+    summary += QStringLiteral(
+        "\nMusic of the Amiga Gold Box games (Secret of the Silver Blades, Pools of\n"
+        "Darkness, Dark Queen of Krynn). Each song is a sequence of 6-byte MIDI-like\n"
+        "events on 16 channels (channel n plays instrument n), 192 ticks per quarter\n"
+        "note. The songs are played with the rules of the game's own driver: four\n"
+        "Paula voices (0/3 left, 1/2 right), sampled instruments with a one-shot and a\n"
+        "loop part, attack/decay and release envelopes in milliseconds, the sample of\n"
+        "the right octave chosen by pitch, PAL timing (50 Hz).");
     auto *summaryView = new QPlainTextEdit(summary);
     summaryView->setReadOnly(true);
     summaryView->setFont(QFont(QStringLiteral("Courier New"), 10));
     tabs->addTab(summaryView, QStringLiteral("Summary"));
 
-    tabs->addTab(makeSequenceView(file), QStringLiteral("Sequence"));
+    for (const MxSong &song : file.songs())
+        tabs->addTab(songView(file, song), QStringLiteral("Song %1").arg(song.index + 1));
 
-    auto *rollScroll = new QScrollArea;
-    auto *rollLabel = new QLabel;
-    rollLabel->setPixmap(QPixmap::fromImage(renderPianoRoll(file)));
-    rollLabel->resize(rollLabel->pixmap().size());
-    rollScroll->setWidget(rollLabel);
-    tabs->addTab(rollScroll, QStringLiteral("Piano Roll"));
+    tabs->addTab(instrumentsView(file), QStringLiteral("Instruments"));
 
-    const AudioSample sample = MxtxFile::synthesize(file);
-    if (sample.valid)
-        tabs->addTab(new AudioView(sample), QStringLiteral("Music"));
-
-    auto *tableScroll = new QScrollArea;
-    auto *tableLabel = new QLabel;
-    tableLabel->setPixmap(QPixmap::fromImage(renderWavetables(file)));
-    tableLabel->resize(tableLabel->pixmap().size());
-    tableScroll->setWidget(tableLabel);
-    tabs->addTab(tableScroll, QStringLiteral("Wavetables"));
-
-    auto *waveScroll = new QScrollArea;
-    auto *waveLabel = new QLabel;
-    waveLabel->setPixmap(QPixmap::fromImage(renderWaveforms(file)));
-    waveLabel->resize(waveLabel->pixmap().size());
-    waveScroll->setWidget(waveLabel);
-    tabs->addTab(waveScroll, QStringLiteral("Waveforms"));
-
-    QFile raw(parameters.filename);
-    if (raw.open(QIODevice::ReadOnly))
-        tabs->addTab(new HexView(raw.readAll()), QStringLiteral("Hex"));
-
-    tabs->setCurrentIndex(1);
+    auto *samples = new QTabWidget;
+    for (const MxInstrument &ins : file.instruments()) {
+        for (int i = 0; i < ins.samples.size(); ++i) {
+            const AudioSample sound = sampleSound(ins, i);
+            if (sound.valid)
+                samples->addTab(new AudioView(sound), ins.samples.size() > 1
+                                                           ? QStringLiteral("%1.%2").arg(ins.id).arg(i + 1)
+                                                           : QString::number(ins.id));
+        }
+    }
+    tabs->addTab(samples, QStringLiteral("Samples"));
+    tabs->addTab(new HexView(data), QStringLiteral("Hex"));
+    tabs->setCurrentIndex(file.songs().isEmpty() ? 0 : 1);
     return tabs;
 }

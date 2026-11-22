@@ -220,6 +220,7 @@ def main() -> None:
     make_record_files(OUT)
     make_adf(OUT)
     make_zip(OUT)
+    make_mx(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -576,6 +577,27 @@ def make_zip(out: Path) -> None:
         info = zipfile.ZipInfo("readme.txt", date_time=(1991, 2, 21, 12, 0, 0))
         info.compress_type = zipfile.ZIP_STORED
         archive.writestr(info, b"Synthetic archive for GoldBoxExplorerQt.\n")
+
+
+def make_mx(out: Path) -> None:
+    """TEST.MX: an MXTX music file with one song (four notes on channel 0)
+    and one instrument whose loop is a 32-byte square wave, with an attack
+    and a release envelope (layout of the Amiga Gold Box music driver)."""
+    events = [
+        (0x80, 120, 0, 0),                 # tempo 120
+        (0xB0, 0x00, 0, (7 << 8) | 100),   # controller 7 (volume) on channel 0
+    ]
+    for i, note in enumerate((57, 60, 64, 69)):
+        events.append((note, 0xF0, 0 if i == 0 else 192, 180))
+    events.append((0xFF, 0x00, 192, 0))
+    song = b"".join(struct.pack(">BBHH", *e) for e in events)
+    wave = bytes([0x60] * 16 + [0xA0] * 16)
+    header = struct.pack(">HhHHIIHH", 0, 0, 0x8000, 1, 0, len(wave), 1, 1)
+    envelopes = struct.pack(">HH", 20, 0x8000) + struct.pack(">HH", 100, 0)
+    data = b"MXTX" + struct.pack(">HH", 0, 0) + struct.pack(">H", 1)
+    data += struct.pack(">I", len(events)) + song
+    data += struct.pack(">H", 1) + header + envelopes + wave
+    (out / "TEST.MX").write_bytes(data)
 
 
 if __name__ == "__main__":

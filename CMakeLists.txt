@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.93.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.94.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,7 +46,7 @@ add_executable(gbexplorer
     src/parse/record_layouts.cpp
     src/parse/record_layouts_gen.cpp
     src/parse/slb.cpp
-    src/parse/mxtx.cpp
+    src/parse/mxmusic.cpp
     src/parse/krynn_fields.cpp
     src/parse/krynn_records.cpp
 
@@ -137,6 +137,16 @@ if(BUILD_TESTING)
         set_tests_properties(zip_extract PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              PASS_REGULAR_EXPRESSION "TEST.ADF  10240  method 8")
+    endif()
+
+    # MXTX music: one synthetic song rendered with the driver rules.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.MX")
+        add_test(NAME mx_render
+                 COMMAND gbexplorer --mx-render "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.MX" 1
+                         "${CMAKE_CURRENT_BINARY_DIR}/mx_test.wav")
+        set_tests_properties(mx_render PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             PASS_REGULAR_EXPRESSION "song 1: 7 events, 4 notes, tempo 120, channels 0")
     endif()
 
     # Death Knights of Krynn / Pool of Radiance record viewers.

@@ -265,7 +265,12 @@ QWidget *SlbPlugin::createViewer(const PluginParameters &parameters)
     summary += QStringLiteral("Songs: %1\n\n").arg(songs.size());
     summary += QStringLiteral("The song streams use two-byte events: note/command + data.\n");
     summary += QStringLiteral("Note durations are stored in the low six bits; 0x40 marks a tied note.\n");
-    summary += QStringLiteral("0xff 0xff terminates each song.\n");
+    summary += QStringLiteral("0xff 0xff terminates each song.\n\n");
+    summary += QStringLiteral(
+        "Note: no Amiga executable loads the .SLB files (Curse of the Azure Bonds,\n"
+        "Secret of the Silver Blades, Dark Queen of Krynn): they are left over from\n"
+        "the PC versions, one-voice tunes for the PC speaker. The preview plays them\n"
+        "with a square wave. The Amiga music is in the .MX files.\n");
     auto *summaryView = new QPlainTextEdit(summary);
     summaryView->setReadOnly(true);
     summaryView->setFont(QFont(QStringLiteral("Courier New"), 10));
