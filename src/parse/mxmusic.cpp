@@ -1,6 +1,7 @@
 #include "parse/mxmusic.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QtEndian>
 
 #include <algorithm>
@@ -186,7 +187,9 @@ private:
                 const int v = noteOn(channel, e.status, velocity);
                 if (v >= 0) {
                     m_voices[v].noteOffAt = (e.status << 8) | channel;
-                    m_voices[v].noteOffLeft = (static_cast<qint64>(e.word) + at - now) << 8;
+                    // Dark Queen ($52fee) subtracts the lateness, Secret and Pools do not
+                    const qint64 late = m_file.driver() == MxMusicFile::DarkQueen ? at - now : 0;
+                    m_voices[v].noteOffLeft = (static_cast<qint64>(e.word) + late) << 8;
                 }
             } else if (e.status == 0x80) {
                 if ((m_increment >> 8) >= e.word || e.word == 0) {
@@ -552,7 +555,14 @@ bool MxMusicFile::load(const QString &path)
         m_error = file.errorString();
         return false;
     }
+    m_driver = driverForFileName(QFileInfo(path).fileName());
     return parse(file.readAll());
+}
+
+MxMusicFile::Driver MxMusicFile::driverForFileName(const QString &fileName)
+{
+    const QString name = fileName.toLower();
+    return name == QStringLiteral("secret.mx") || name == QStringLiteral("pod.mx") ? SilverBlades : DarkQueen;
 }
 
 bool MxMusicFile::parse(const QByteArray &data)

@@ -3,6 +3,7 @@
 #include "core/paula.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QtEndian>
 
 #include <algorithm>
@@ -136,12 +137,14 @@ bool SlbFile::load(const QString &path)
         m_valid = false;
         return false;
     }
-    return parse(file.readAll());
+    const bool secret = QFileInfo(path).fileName().compare(QStringLiteral("SECRET.SLB"), Qt::CaseInsensitive) == 0;
+    return parse(file.readAll(), secret ? SilverBlades : Standard);
 }
 
-bool SlbFile::parse(const QByteArray &d)
+bool SlbFile::parse(const QByteArray &d, Variant variant)
 {
     m_valid = false;
+    m_variant = variant;
     m_songs.clear();
     m_size = static_cast<int>(d.size());
     if (!looksLikeSlb(d)) {
@@ -165,6 +168,7 @@ bool SlbFile::parse(const QByteArray &d)
         }
         song.tempo = be16(d, song.offset);
         song.volume = static_cast<quint8>(d.at(song.offset + 2));
+        song.firstTrack = variant == SilverBlades ? 1 : 0;
         const int voices = std::min(5, static_cast<int>(static_cast<quint8>(d.at(song.offset + 3))));
         for (int v = 0; v < voices; ++v) {
             SlbTrack track;
@@ -202,14 +206,15 @@ AudioSample SlbFile::render(const SlbSong &song, const RenderOptions &options)
     out.channels = 2;
     out.bits = 16;
     const int factor = song.tempoFactor();
-    if (song.tracks.isEmpty() || factor <= 0) {
+    const int first = std::min(song.firstTrack, static_cast<int>(song.tracks.size()));
+    if (song.tracks.size() <= first || factor <= 0) {
         out.error = QStringLiteral("the song has no tracks or no tempo");
         return out;
     }
 
     const std::vector<uint8_t> mem = chipMemory();
     PaulaMixer paula(options.sampleRate);
-    QVector<Voice> voices(song.tracks.size());
+    QVector<Voice> voices(song.tracks.size() - first);
 
     // song start ($3aaee)
     const auto start = [&](qint64 now) {
@@ -233,7 +238,7 @@ AudioSample SlbFile::render(const SlbSong &song, const RenderOptions &options)
         bool ended = false;
         for (int n = 0; n < voices.size(); ++n) {
             Voice &v = voices[n];
-            const QVector<SlbEvent> &events = song.tracks.at(n).events;
+            const QVector<SlbEvent> &events = song.tracks.at(first + n).events;
             if (v.time == 0 || v.time > now)
                 continue;
             if (v.state == 0) {                     // gap before a repeated note

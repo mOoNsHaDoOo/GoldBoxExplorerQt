@@ -23,6 +23,8 @@
 //   $81    voice off, data = instrument (stored, not used by the synth)
 //   $84    volume = data
 //   $FF    end of the track (the song starts again when every track ended)
+// Secret of the Silver Blades plays the tracks from the second one (the
+// first is not played); Curse and Dark Queen play all of them.
 //   other commands ($82, $83, $87, $88) are skipped, and so are notes and
 //   rests with bit 7 of data set (Dark Queen of Krynn's sequencer; only its
 //   MUSIC.SLB has them)
@@ -56,6 +58,9 @@ struct SlbSong
     int tempo = 0;
     int volume = 0;
     QVector<SlbTrack> tracks;
+    // Secret of the Silver Blades' song start ($3ec6e) gives voice n the
+    // track n + 1: the first track is not played.
+    int firstTrack = 0;
     int tempoFactor() const { return 105 * tempo / 24000; }
     int noteCount() const;
 };
@@ -66,8 +71,12 @@ public:
     SlbFile() = default;
     explicit SlbFile(const QString &path) { load(path); }
 
+    // Which game's sequencer plays the bank; load() picks it by the file
+    // name (SECRET.SLB is Secret of the Silver Blades').
+    enum Variant { Standard, SilverBlades };
     bool load(const QString &path);
-    bool parse(const QByteArray &data);
+    bool parse(const QByteArray &data, Variant variant = Standard);
+    Variant variant() const { return m_variant; }
     bool isValid() const { return m_valid; }
     QString errorString() const { return m_error; }
     const QVector<SlbSong> &songs() const { return m_songs; }
@@ -94,5 +103,6 @@ private:
     QString m_error;
     bool m_valid = false;
     int m_size = 0;
+    Variant m_variant = Standard;
     QVector<SlbSong> m_songs;
 };

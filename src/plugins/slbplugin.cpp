@@ -106,7 +106,8 @@ QWidget *makeEventsView(const SlbSong &song)
             table->setItem(row, 2, new QTableWidgetItem(eventText(e)));
         }
         table->resizeColumnsToContents();
-        tabs->addTab(table, QStringLiteral("Track %1").arg(v + 1));
+        tabs->addTab(table, v < song.firstTrack ? QStringLiteral("Track %1 (not played)").arg(v + 1)
+                                                : QStringLiteral("Track %1").arg(v + 1));
     }
     return tabs;
 }
@@ -149,7 +150,7 @@ QImage renderPianoRoll(const SlbSong &song)
     }
     static const QColor colors[5] = {QColor(110, 220, 140), QColor(110, 170, 255), QColor(255, 196, 64),
                                      QColor(240, 120, 160), QColor(200, 200, 200)};
-    for (int v = 0; v < song.tracks.size(); ++v) {
+    for (int v = song.firstTrack; v < song.tracks.size(); ++v) {
         qint64 t = 0;
         for (const SlbEvent &e : song.tracks.at(v).events) {
             if (!e.isNote() && !e.isRest())

@@ -25,7 +25,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.95**.
+Current version: **0.96**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -51,8 +51,8 @@ project is portable to Linux and Windows.
 | Amiga audio | 8SVX/16SV IFF audio with waveform preview, metadata, playback, and WAV export; extensionless sounds detected by content |
 | Amiga DAX | Big-endian index + ByteKiller depacker; 4-plane planar images, ECL, GEO, WALLDEF, item/monster data, and the `pic`/`sprit`/`final` prefix variant |
 | Amiga music/instruments | IFF inspector for `FORM INST` (e.g. `Sound/cast4`), `FORM SMUS` (`Sound/krynn`) with sample-bank-driven playback, embedded sound banks (`Sound/soundData`), and referenced sample playback |
-| Amiga song banks | `SLBR` `.SLB` files (`CURSE.SLB`, `SECRET.SLB`, `MUSIC.SLB`): the music of Curse of the Azure Bonds, and the fallback music of Secret, Pools and Dark Queen. Songs of up to five tracks played with the game's own sequencer and sawtooth synth on emulated Paula (checked against the original code run in the 68000 interpreter), track event tables, piano roll, playback/WAV export; `--slb FILE [SONG OUT.wav]` |
-| MX music | `MXTX` `.MX` files (Secret, Pools, Dark Queen): songs played with the reconstructed MX driver (sampled instruments, envelopes, four Paula voices), event tables, instruments, samples, hex; `--mx-render FILE SONG OUT.wav` |
+| Amiga song banks | `SLBR` `.SLB` files (`CURSE.SLB`, `SECRET.SLB`, `MUSIC.SLB`): the music of Curse of the Azure Bonds, and the fallback music of Secret, Pools and Dark Queen. Songs of up to five tracks played with the game's own sequencer (Secret's variant skips the first track) and sawtooth synth on emulated Paula (checked against the original code run in the 68000 interpreter), track event tables, piano roll, playback/WAV export; `--slb FILE [SONG OUT.wav]` |
+| MX music | `MXTX` `.MX` files (Secret, Pools, Dark Queen): songs played with the reconstructed MX driver (sampled instruments, envelopes, four Paula voices; Dark Queen's or Secret/Pools' note timing by file name), event tables, instruments, samples, hex; `--mx-render FILE SONG OUT.wav` |
 | Executable music | Pool of Radiance `program`: a Music tab plays its six songs by running Wally Beben's original player in a built-in 68000 interpreter, with Paula emulated; `--exe-music FILE [SONG OUT.wav]` |
 | Save files | Amiga `CHRDATA*.sav` character records, `CHRDATA*.swg` equipment slots, `CHRDATA*.fx` effect records, and `SAVGAM*.DAT` summaries |
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |

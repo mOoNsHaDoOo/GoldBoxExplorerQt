@@ -174,12 +174,16 @@ QWidget *MxtxPlugin::createViewer(const PluginParameters &parameters)
         return messageView(QStringLiteral("Unable to open the file."));
     const QByteArray data = raw.readAll();
     MxMusicFile file;
+    file.setDriver(MxMusicFile::driverForFileName(QFileInfo(parameters.filename).fileName()));
     if (!file.parse(data))
         return messageView(QStringLiteral("Unable to read this MXTX music file:\n%1").arg(file.errorString()));
 
     auto *tabs = new QTabWidget;
     QString summary;
     summary += QStringLiteral("File: %1 (%2 bytes)\n").arg(QFileInfo(parameters.filename).fileName()).arg(data.size());
+    summary += QStringLiteral("Driver: %1\n").arg(file.driver() == MxMusicFile::DarkQueen
+                                                        ? QStringLiteral("Dark Queen of Krynn")
+                                                        : QStringLiteral("Secret of the Silver Blades / Pools of Darkness"));
     summary += QStringLiteral("Songs: %1, instruments: %2, velocity sensitive: %3\n\n")
                    .arg(file.songs().size()).arg(file.instruments().size())
                    .arg(file.velocitySensitive() ? QStringLiteral("yes") : QStringLiteral("no"));

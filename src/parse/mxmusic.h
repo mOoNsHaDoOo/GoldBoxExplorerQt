@@ -75,6 +75,17 @@ public:
     bool parse(const QByteArray &data);
     bool load(const QString &path);
 
+    // The driver differs a little between the games: Dark Queen of Krynn's
+    // sequencer shortens a note by the time its event was served late, so
+    // that the note off falls on time; the drivers of Secret of the Silver
+    // Blades and Pools of Darkness count the length from the frame that
+    // starts the note. load() picks the driver by the file name
+    // (secret.mx, pod.mx); other names use Dark Queen's.
+    enum Driver { DarkQueen, SilverBlades };
+    static Driver driverForFileName(const QString &fileName);
+    void setDriver(Driver driver) { m_driver = driver; }
+    Driver driver() const { return m_driver; }
+
     bool isValid() const { return m_valid; }
     QString errorString() const { return m_error; }
     int flags() const { return m_flags; }
@@ -101,5 +112,6 @@ private:
     QString m_error;
     int m_flags = 0;
     int m_flags2 = 0;
+    Driver m_driver = DarkQueen;
     bool m_valid = false;
 };

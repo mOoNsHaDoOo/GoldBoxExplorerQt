@@ -9,10 +9,11 @@
 | Dark Queen of Krynn | `dqk.mx` (8 songs); `MUSIC.SLB` (8 songs) when the MX music is not loaded | MX driver / SLB |
 
 Dark Queen of Krynn loads `dqk.mx` and plays it when that worked, else it
-loads `music.slb` (code $36456). Secret of the Silver Blades and Pools of
-Darkness link the same SLB loader, sequencer and synth (the choice between
-MX and SLB was traced in Dark Queen only). `sounds.glb` holds the sound
-effects.
+loads `music.slb` (code $36456). Secret of the Silver Blades does the same
+(code $31d76, $31df4): it loads `secret.mx` when the MX driver starts
+($4ac0a) and a 57 KB block is free (AvailMem, $45716), else `secret.slb`.
+Pools of Darkness links the same SLB code but its disks have no `.SLB`.
+`sounds.glb` holds the sound effects.
 
 ## Pool of Radiance: Wally Beben's player
 
@@ -41,8 +42,9 @@ Implementation: `src/parse/exemusic.*`, Music tab of the executable viewer
 ## SLB song banks
 
 Reconstructed from the Curse of the Azure Bonds executable (code hunk
-addresses), checked by running the original sequencer of Curse and of Dark
-Queen of Krynn in the 68000 interpreter: same Paula output for every song.
+addresses), checked by running the original sequencers of Curse, Secret of
+the Silver Blades and Dark Queen of Krynn in the 68000 interpreter: same
+Paula output for every song.
 Implementation: `src/parse/slb.*`, viewer `src/plugins/slbplugin.cpp`, CLI
 `--slb FILE [SONG OUT.wav]`.
 
@@ -69,6 +71,11 @@ per song:
 Dark Queen of Krynn's sequencer ($45ba4) also skips notes and rests whose
 data has bit 7 set (only its `MUSIC.SLB` has some).
 
+Secret of the Silver Blades' song start ($3ec6e) gives voice n the track
+n + 1 and starts tracks - 1 voices: the first track of `SECRET.SLB` is not
+played (it starts with the same notes as the second, at volume $40). The viewer
+marks it "not played"; the variant is chosen by the file name.
+
 ### Timing
 
 Length ($3a962): whole note $6900 >> (data & 7); bit 3 dotted (x 1.5); bits
@@ -91,8 +98,21 @@ sets the volume to 0 and stops the channel's DMA.
 
 ## MX driver
 
-Reconstructed from the Dark Queen of Krynn executable (code hunk addresses);
-Secret of the Silver Blades and Pools of Darkness link the same driver.
+Reconstructed from the Dark Queen of Krynn executable (code hunk addresses).
+Secret of the Silver Blades ($4a1a6-$4c400) and Pools of Darkness link an
+earlier build of the same driver. Compared instruction by instruction with
+Dark Queen's, the differences that touch the music files are:
+
+* note length: Dark Queen ($52fee) shortens a note by the time its event was
+  served late (event time - current time), Secret and Pools start counting
+  from the frame of the note on. The player follows the game (by file name:
+  `secret.mx`, `pod.mx`);
+* voice choice: Dark Queen does not prefer the channel's voice pair for
+  channels 8-15, Secret always does (the files use channels 0-4 only);
+* controller handling (volume flags, mono/poly), not used by `secret.mx`
+  (notes, one tempo and the end only);
+* Secret waits a raster line before restarting Paula DMA on Kickstart 1.x,
+  Dark Queen checks the beam position in its interrupt: hardware timing only.
 Implementation: `src/parse/mxmusic.*`, viewer `src/plugins/mxtxplugin.cpp`,
 CLI `--mx-render FILE SONG OUT.wav`.
 
