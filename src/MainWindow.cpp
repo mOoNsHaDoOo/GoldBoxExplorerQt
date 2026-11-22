@@ -254,6 +254,12 @@ void MainWindow::buildMenus()
     QAction *openFolder = fileMenu->addAction(QStringLiteral("&Open Folder..."));
     connect(openFolder, &QAction::triggered, this, &MainWindow::selectRootFolder);
 
+    // The folder chooser above shows files disabled (macOS greys them out):
+    // disk images and ZIP archives are picked here instead.
+    QAction *openArchiveAction = fileMenu->addAction(QStringLiteral("Open &Disk Image or ZIP..."));
+    openArchiveAction->setShortcut(QKeySequence::Open);
+    connect(openArchiveAction, &QAction::triggered, this, &MainWindow::selectArchive);
+
     QAction *exportAction = fileMenu->addAction(QStringLiteral("&Export..."));
     connect(exportAction, &QAction::triggered, this, &MainWindow::exportCurrentFile);
 
@@ -309,6 +315,25 @@ void MainWindow::selectRootFolder()
     m_rootFolder = folder;
     m_settings.setValue(QStringLiteral("rootFolder"), folder);
     initDirectory(folder);
+}
+
+void MainWindow::selectArchive()
+{
+    const QString start = m_settings.value(QStringLiteral("archiveFolder"), m_rootFolder).toString();
+    const QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("Open a disk image or ZIP archive"), start,
+        QStringLiteral("Amiga disk images and ZIP archives (*.adf *.ADF *.zip *.ZIP);;"
+                       "Amiga disk images (*.adf *.ADF);;ZIP archives (*.zip *.ZIP);;All files (*)"));
+    if (path.isEmpty())
+        return;
+    m_settings.setValue(QStringLiteral("archiveFolder"), QFileInfo(path).absolutePath());
+    if (!AdfImage::looksLikeAdf(path) && !ZipArchive::looksLikeZip(path)) {
+        QMessageBox::information(this, QStringLiteral("Open"),
+                                 QStringLiteral("%1 is not an Amiga disk image (.adf) or a ZIP archive.")
+                                     .arg(QFileInfo(path).fileName()));
+        return;
+    }
+    openArchive(path);
 }
 
 void MainWindow::initDirectory(const QString &path)

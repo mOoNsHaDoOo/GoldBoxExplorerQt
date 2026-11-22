@@ -47,6 +47,7 @@ private:
     void updateViewerWidth();
     void addDirectories(QTreeWidgetItem *item, const QString &path);
     void selectRootFolder();
+    void selectArchive();
     void exportCurrentFile();
     void showAbout();
     // Amiga disk images and ZIP archives: extracted into the temporary
