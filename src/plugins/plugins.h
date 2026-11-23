@@ -130,6 +130,14 @@ class GlbPlugin : public Plugin
 public:
     bool isSatisfiedBy(const QString &path) const override;
     QWidget *createViewer(const PluginParameters &parameters) override;
+    // TLB master libraries also get a View tab with every image (a TlbPlugin)
+    void setZoom(float zoom) override;
+    void setContainerWidth(int width) override;
+    bool isImageFile() const override { return m_tlb != nullptr; }
+    QVector<QImage> getBitmaps() override;
+
+private:
+    std::unique_ptr<TlbPlugin> m_tlb;
 };
 
 class CharacterPlugin : public Plugin

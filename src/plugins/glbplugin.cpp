@@ -317,8 +317,8 @@ bool GlbPlugin::isSatisfiedBy(const QString &path) const
         return true;
 
     // Some Amiga TLB files are master libraries whose nested TILE blocks are
-    // compressed (the "unused" header byte is 5).  The normal TLB image path
-    // cannot decode those, so route them through the generic container view.
+    // compressed (the "unused" header byte is 5): they get the container view
+    // here, with a View tab of every image (TlbFile decodes them).
     GlbFile glb(path);
     if (!glb.isValid() || glb.blocks().isEmpty())
         return false;
@@ -337,6 +337,19 @@ QWidget *GlbPlugin::createViewer(const PluginParameters &parameters)
     const QVector<GlbBlock> blocks = file.blocks();
 
     auto *tabs = new QTabWidget;
+
+    // a TLB: every image of the file first
+    m_tlb.reset();
+    if (fileName.endsWith(QStringLiteral(".TLB"))) {
+        auto tlb = std::make_unique<TlbPlugin>();
+        QWidget *view = tlb->createViewer(parameters);
+        if (view && !tlb->getBitmaps().isEmpty()) {
+            tabs->addTab(view, QStringLiteral("View"));
+            m_tlb = std::move(tlb);
+        } else {
+            delete view;
+        }
+    }
 
     QString summary;
     summary += QStringLiteral("File: %1\n").arg(QFileInfo(parameters.filename).fileName());
@@ -396,4 +409,21 @@ QWidget *GlbPlugin::createViewer(const PluginParameters &parameters)
         tabs->addTab(new HexView(raw.readAll()), QStringLiteral("Hex"));
 
     return tabs;
+}
+
+void GlbPlugin::setZoom(float zoom)
+{
+    if (m_tlb)
+        m_tlb->setZoom(zoom);
+}
+
+void GlbPlugin::setContainerWidth(int width)
+{
+    if (m_tlb)
+        m_tlb->setContainerWidth(width);
+}
+
+QVector<QImage> GlbPlugin::getBitmaps()
+{
+    return m_tlb ? m_tlb->getBitmaps() : QVector<QImage>{};
 }
