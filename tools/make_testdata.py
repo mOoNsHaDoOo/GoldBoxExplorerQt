@@ -203,6 +203,33 @@ def make_ecl_file(out: Path) -> None:
     write_dax([(1, payload)], out / "ECL1.DAX")
 
 
+def make_ecl_dialect_files(out: Path) -> None:
+    """Tiny ECL programs in the Death Knights of Krynn and Pool of Radiance
+    dialects (no game data): commands whose operands differ from Champions
+    of Krynn, and an ON_GOTO followed by a table."""
+
+    def goto(word: int) -> bytes:
+        return bytes([0x01, 0x01, word & 0xFF, word >> 8])
+
+    # DKK: program at $3500, addresses are word - $4B00.
+    first = 0x3514 + 0x4B00
+    dkk = b"".join(goto(first) for _ in range(5))
+    dkk += bytes([0x27, 0, 1, 0, 2, 0, 3, 0, 2, 0, 10, 0, 11])     # TREASURE 1, 2, 3, (2) 10, 11
+    dkk += bytes([0x31, 0x01, 0x10, 0x4B, 0, 2, 0x80, 0, 0x80, 0])  # HMENU [A:$0010], "", ""
+    dkk += bytes([0x23])                                            # ENCOUNTER_EXIT
+    write_dax([(1, bytes([0, 0]) + dkk)], out / "ECLDKK.DAX")
+
+    # PoR: program at $9900, absolute addresses.
+    por = b"".join(goto(0x9914) for _ in range(5))
+    table = 0x9929
+    por += bytes([0x2A, 0x01, table & 0xFF, table >> 8, 0, 1, 0x01, 0x00, 0x6E])   # GET_TABLE
+    por += bytes([0x25, 0x01, 0x00, 0x6E, 0, 2, 0x01, 0x2C, 0x99, 0x01, 0x30, 0x99])  # ON_GOTO
+    por += bytes([0x00, 0x05, 0x07])                                # table_1
+    por += bytes([0x11, 0x80, 0x00, 0x00])                          # $992C: PRINT "", EXIT
+    por += bytes([0x34, 0x00, 0x05, 0x00])                          # $9930: CLOCK 5, EXIT
+    write_dax([(1, bytes([0, 0]) + por)], out / "ECLPOR.DAX")
+
+
 def main() -> None:
     OUT.mkdir(exist_ok=True)
     make_dax_images(OUT)
@@ -211,6 +238,7 @@ def main() -> None:
     make_data_files(OUT)
     make_geo_files(OUT)
     make_ecl_file(OUT)
+    make_ecl_dialect_files(OUT)
     make_amiga_files(OUT)
     make_daa_container(OUT)
     make_item_dax(OUT)

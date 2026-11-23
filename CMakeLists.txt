@@ -230,6 +230,21 @@ if(BUILD_TESTING)
         endif()
     endforeach()
 
+    # ECL Basic in the Death Knights of Krynn and Pool of Radiance dialects
+    # (synthetic programs from tools/make_testdata.py).
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/ECLDKK.DAX")
+        add_test(NAME ecl_basic_dkk
+                 COMMAND gbexplorer --ecl-basic "${CMAKE_CURRENT_SOURCE_DIR}/testdata/ECLDKK.DAX")
+        set_tests_properties(ecl_basic_dkk PROPERTIES PASS_REGULAR_EXPRESSION
+            "Death Knights of Krynn.*TREASURE +1, 2, 3, 10, 11\n +HMENU +\\[A:\\$0010\\], \"\", \"\"\n +ENCOUNTER_EXIT")
+    endif()
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/ECLPOR.DAX")
+        add_test(NAME ecl_basic_por
+                 COMMAND gbexplorer --ecl-basic "${CMAKE_CURRENT_SOURCE_DIR}/testdata/ECLPOR.DAX")
+        set_tests_properties(ecl_basic_por PROPERTIES PASS_REGULAR_EXPRESSION
+            "Pool of Radiance.*GET_TABLE +table_1, 1, \\[A:\\$6E00\\]\n +ON_GOTO +\\[A:\\$6E00\\], loc_1, loc_2\n.*CLOCK +5.*table table_1 +; 3 bytes")
+    endif()
+
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")
         add_test(NAME audio_8svx
                  COMMAND gbexplorer --audio "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.8SVX")

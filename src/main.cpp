@@ -38,10 +38,12 @@
 
 namespace {
 
-// --ecl-basic FILE [BLOCK]: prints the ECL Basic listing of every block (or
-// of one block) of a Champions of Krynn ECLn.DAX to stdout.  Runs before
-// QApplication so it needs no display.
-int printEclBasic(const QString &path, int onlyBlock)
+// --ecl-basic FILE [BLOCK|all] [cok|dkk|por]: prints the ECL Basic listing
+// of every block (or of one block) of an ECL file of Champions of Krynn,
+// Death Knights of Krynn or Pool of Radiance to stdout.  The dialect comes
+// from the file (and falls back to the others) unless it is given.  Runs
+// before QApplication so it needs no display.
+int printEclBasic(const QString &path, int onlyBlock, const QString &forced)
 {
     DaxFile file(path);
     if (!file.isValid()) {
@@ -49,13 +51,22 @@ int printEclBasic(const QString &path, int onlyBlock)
         return 1;
     }
     const QString tag = eclBasicFileTag(path);
+    EclBasicDialect dialect = eclBasicDialectForFile(path);
+    if (forced == QStringLiteral("cok"))
+        dialect = EclBasicDialect::ChampionsOfKrynn;
+    else if (forced == QStringLiteral("dkk"))
+        dialect = EclBasicDialect::DeathKnightsOfKrynn;
+    else if (forced == QStringLiteral("por"))
+        dialect = EclBasicDialect::PoolOfRadiance;
     int failures = 0;
     bool found = false;
     for (const DaxFileBlock &block : file.blocks()) {
         if (onlyBlock >= 0 && block.id != onlyBlock)
             continue;
         found = true;
-        const EclBasicResult result = eclBasicDisassembleBlock(block.data, tag, block.id);
+        const EclBasicResult result = forced.isEmpty()
+                                          ? eclBasicDisassembleBlockAuto(block.data, tag, block.id, dialect)
+                                          : eclBasicDisassembleBlock(block.data, tag, block.id, dialect);
         if (!result.ok) {
             std::fprintf(stderr, "%s block %d: not ECL Basic: %s\n", qPrintable(tag), block.id,
                          qPrintable(result.error));
@@ -78,12 +89,15 @@ int main(int argc, char *argv[])
 {
     if (argc >= 3 && std::strcmp(argv[1], "--ecl-basic") == 0) {
         bool ok = true;
-        const int block = argc >= 4 ? QString::fromLocal8Bit(argv[3]).toInt(&ok) : -1;
-        if (!ok) {
-            std::fprintf(stderr, "usage: %s --ecl-basic FILE [BLOCK]\n", argv[0]);
+        const QString blockArg = argc >= 4 ? QString::fromLocal8Bit(argv[3]) : QString();
+        const int block = blockArg.isEmpty() || blockArg == QStringLiteral("all") ? -1 : blockArg.toInt(&ok);
+        const QString forced = argc >= 5 ? QString::fromLocal8Bit(argv[4]).toLower() : QString();
+        if (!ok || (!forced.isEmpty() && forced != QStringLiteral("cok") && forced != QStringLiteral("dkk")
+                    && forced != QStringLiteral("por"))) {
+            std::fprintf(stderr, "usage: %s --ecl-basic FILE [BLOCK|all] [cok|dkk|por]\n", argv[0]);
             return 2;
         }
-        return printEclBasic(QString::fromLocal8Bit(argv[1 + 1]), block);
+        return printEclBasic(QString::fromLocal8Bit(argv[1 + 1]), block, forced);
     }
 
     QApplication app(argc, argv);

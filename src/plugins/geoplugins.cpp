@@ -492,15 +492,17 @@ QWidget *EclPlugin::createViewer(const PluginParameters &parameters)
     }
 
     auto *tabs = new QTabWidget;
-    const bool pool = parameters.filename.contains(QStringLiteral("pool"), Qt::CaseInsensitive)
-                      || parameters.filename.contains(QStringLiteral("poolrad"), Qt::CaseInsensitive);
+    const EclBasicDialect dialect = eclBasicDialectForFile(parameters.filename);
+    const bool pool = dialect == EclBasicDialect::PoolOfRadiance
+                      || parameters.filename.contains(QStringLiteral("pool"), Qt::CaseInsensitive);
     const QString fileTag = eclBasicFileTag(parameters.filename);
     for (const EclBlock &block : file.blocks()) {
         auto *blockTabs = new QTabWidget;
 
-        // ECL Basic (Champions of Krynn, Amiga): first tab, and the default
-        // one when the block decodes in that dialect.
-        const EclBasicResult basic = eclBasicDisassembleBlock(block.data, fileTag, block.id);
+        // ECL Basic (Champions of Krynn, Death Knights of Krynn, Pool of
+        // Radiance): first tab, and the default one when the block decodes
+        // in the dialect of the game (or, failing that, in another one).
+        const EclBasicResult basic = eclBasicDisassembleBlockAuto(block.data, fileTag, block.id, dialect);
         blockTabs->addTab(new EclBasicView(basic.ok, basic.text, basic.error),
                           basic.ok ? QStringLiteral("ECL Basic")
                                    : QStringLiteral("ECL Basic (n/a)"));

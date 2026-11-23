@@ -308,7 +308,8 @@ EclBasicView::EclBasicView(bool ok, const QString &text, const QString &error, Q
     m_edit = new EclBasicEdit;
     if (!ok) {
         m_edit->setPlainText(
-            QStringLiteral("This block is not a Champions of Krynn (Amiga) ECL program,\n"
+            QStringLiteral("This block is not an ECL program of Champions of Krynn,\n"
+                           "Death Knights of Krynn or Pool of Radiance (Amiga),\n"
                            "so it cannot be shown as ECL Basic.\n\n"
                            "Decoder: %1\n\n"
                            "The other views of this block are unaffected.\n")
@@ -432,10 +433,16 @@ EclBasicBlocksView::EclBasicBlocksView(const QVector<QPair<int, QByteArray>> &bl
     m_list = new QListWidget;
     m_stack = new QStackedWidget;
     for (const auto &block : blocks) {
-        EclBasicResult result = eclBasicDisassembleBlock(block.second, fileTag, block.first);
+        EclBasicResult result = eclBasicDisassembleBlockAuto(block.second, fileTag, block.first,
+                                                             EclBasicDialect::ChampionsOfKrynn);
         QString how = QStringLiteral("ECL block");
         if (!result.ok) {
-            const EclBasicResult bare = eclBasicDisassemble(block.second, fileTag, block.first);
+            EclBasicResult bare = eclBasicDisassemble(block.second, fileTag, block.first);
+            for (EclBasicDialect other : {EclBasicDialect::DeathKnightsOfKrynn, EclBasicDialect::PoolOfRadiance}) {
+                if (bare.ok)
+                    break;
+                bare = eclBasicDisassemble(block.second, fileTag, block.first, other);
+            }
             if (bare.ok) {
                 result = bare;
                 how = QStringLiteral("program image");
@@ -450,7 +457,7 @@ EclBasicBlocksView::EclBasicBlocksView(const QVector<QPair<int, QByteArray>> &bl
         m_list->addItem(item);
         m_stack->addWidget(new EclBasicView(result.ok, result.text, result.error));
     }
-    summary->setText(QStringLiteral("%1 of %2 blocks decode as Champions of Krynn (Amiga) ECL Basic.")
+    summary->setText(QStringLiteral("%1 of %2 blocks decode as ECL Basic.")
                          .arg(m_decoded)
                          .arg(blocks.size()));
 

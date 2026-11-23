@@ -60,10 +60,26 @@ project is portable to Linux and Windows.
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
 | GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with multi-wallset textures (Amiga `8X8D*.DAA` tiles used when present), keyboard movement (arrows/WASD, Q/E strafe), rotation, map cursor sync, and event→ECL navigation; `--fp GEOFILE MAP MOVES OUT.png` |
-| ECL (.DAX) | Per-block **ECL Basic** listing for *Champions of Krynn* (Amiga) programs (labels, tables, named variables, search, label list, Ctrl+click jumps), extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex; `--ecl-basic` CLI |
+| ECL (.DAX) | Per-block **ECL Basic** listing for *Champions of Krynn*, *Death Knights of Krynn* and *Pool of Radiance* (Amiga) programs (labels, tables, named variables, search, label list, Ctrl+click jumps), extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex; `--ecl-basic` CLI |
 
 ### Recent additions
 
+- **ECL Basic for Death Knights of Krynn and Pool of Radiance.** The ECL
+  Basic decoder now has one dialect per game: command names, operand
+  counts, variable-length commands, the commands skipped after a false
+  `IF`, program address and variable addressing. *Death Knights of Krynn*
+  follows the interpreter of its C port (`h015_ecl_loop.c`,
+  `h064_ecl_vm.c`: `SETUP_MONSTER` with 4 operands, `TREASURE` and `HMENU`
+  with a list, `ENCOUNTER_EXIT`, `JOURNAL`, `SOUND`, `ADD_EXPERIENCE`...);
+  *Pool of Radiance* follows `mod16.c`/`mod04.c` of its port (program at
+  `$9900`, absolute variable addresses shown by area: `G:` game, `A:` area,
+  `T:` temporaries). The dialect comes from the file (`ECL.DAX` is Pool of
+  Radiance; `ECL3.DAX`, `GLOBALS.DAA` or `MON1WIZ.DAX` mean Death Knights of
+  Krynn) and the others are tried when it fails. All the blocks of the
+  three games decode; the Champions of Krynn listings are unchanged. Where
+  an `ON_GOTO` is followed by data (its index never falls through), the
+  bytes after it are decoded only if they are code that does not cover a
+  table. `--ecl-basic FILE [BLOCK|all] [cok|dkk|por]` forces a dialect.
 - **ECL Basic (Champions of Krynn, Amiga).** Every block of `ecl1.dax` /
   `ecl2.dax` now opens on an `ECL Basic` tab: the cleartext form of the
   program, one command per line in execution order, labels only where
@@ -376,11 +392,14 @@ QT_QPA_PLATFORM=offscreen ./build/gbexplorer.app/Contents/MacOS/gbexplorer \
 # writes /tmp/ecl_disasm_<block>.txt
 ```
 
-The ECL Basic listing of a *Champions of Krynn* `ECLn.DAX` (every block, or
-one block) is printed to stdout; this mode needs no display:
+The ECL Basic listing of an ECL file of *Champions of Krynn*, *Death Knights
+of Krynn* or *Pool of Radiance* (every block, or one block) is printed to
+stdout; this mode needs no display. The dialect comes from the file unless
+it is given (`cok`, `dkk`, `por`):
 
 ```sh
 ./build/gbexplorer --ecl-basic "/path/to/ecl1.dax" 16
+./build/gbexplorer --ecl-basic "/path/to/ECL3.DAX" all dkk
 ```
 
 `tools/check_ecl_basic.py GBEXPLORER DAX_DIR GOLDEN_DIR` compares it with

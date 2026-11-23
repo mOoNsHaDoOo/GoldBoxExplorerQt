@@ -38,8 +38,8 @@ private:
 };
 
 // One ECL Basic listing with a search bar and a label list.  When the decode
-// failed, the view explains that the block is not in the Champions of Krynn
-// (Amiga) dialect.
+// failed, the view explains that the block is not in any known dialect
+// (Champions of Krynn, Death Knights of Krynn, Pool of Radiance).
 class EclBasicView : public QWidget
 {
     Q_OBJECT
