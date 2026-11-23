@@ -2,6 +2,9 @@
 
 #include "core/byteutils.h"
 #include "dax/daximagefile.h"
+#include "parse/daa.h"
+
+#include <QHash>
 
 #include <QDir>
 #include <QFileInfo>
@@ -19,6 +22,33 @@ void applyTransparency(QImage &image)
                 line[x] = qRgba(0, 0, 0, 0);
         }
     }
+}
+
+// The 8x8 tiles of a tile file by block id, from a DOS DAX or an Amiga DAA
+// (Champions of Krynn on the Amiga keeps WALLDEF*.DAX next to 8X8D*.DAA).
+const QHash<int, QVector<QImage>> &tileBlocks(const QString &path)
+{
+    static QHash<QString, QHash<int, QVector<QImage>>> cache;
+    const auto found = cache.constFind(path);
+    if (found != cache.constEnd())
+        return found.value();
+    QHash<int, QVector<QImage>> blocks;
+    if (QFileInfo::exists(path)) {
+        if (path.endsWith(QStringLiteral(".daa"), Qt::CaseInsensitive)) {
+            DaaFile file(path);
+            for (const DaaBlock &block : file.blocks()) {
+                DaaRecordInfo info;
+                const QVector<QImage> tiles = decodeDaaRecord(block.data, true, &info);
+                if (info.valid)
+                    blocks[block.id] += tiles;
+            }
+        } else {
+            DaxImageFile file(path);
+            for (int i = 0; i < file.bitmaps().size(); ++i)
+                blocks[file.bitmapIds().value(i, -1)].append(file.bitmaps().at(i));
+        }
+    }
+    return cache.insert(path, blocks).value();
 }
 
 } // namespace
@@ -63,7 +93,7 @@ QVector<QImage> DaxWallDefFile::assembleWallSet(const DaxFileBlock &block, const
     const QFileInfo info(fileName);
     QString tileBase = info.fileName();
     tileBase.replace(QStringLiteral("walldef"), QStringLiteral("8x8d"), Qt::CaseInsensitive);
-    const QString tileFileName = resolveExisting(info.absoluteDir().filePath(tileBase));
+    const QString tileFileName = tileFile(info.absoluteDir().filePath(tileBase));
 
     const QVector<QImage> tiles = load8x8Bitmaps(block, fileName, tileFileName);
     const QVector<WallDef> defs = loadWallDefs(block);
@@ -168,9 +198,9 @@ QImage DaxWallDefFile::bitmapZero()
 QString DaxWallDefFile::universalTileFileName(const QString &fileName)
 {
     const QDir dir = QFileInfo(fileName).absoluteDir();
-    QString first = resolveExisting(dir.filePath(QStringLiteral("8x8d1.dax")));
+    QString first = tileFile(dir.filePath(QStringLiteral("8x8d1.dax")));
     if (bitmapCount(203, first) == 0)
-        first = resolveExisting(dir.filePath(QStringLiteral("8x8d.dax")));
+        first = tileFile(dir.filePath(QStringLiteral("8x8d.dax")));
     return first;
 }
 
@@ -190,30 +220,24 @@ QString DaxWallDefFile::resolveExisting(const QString &path)
     return path;
 }
 
+// An Amiga 8X8D*.DAA next to the wall definitions is used before a DAX of
+// the same name.
+QString DaxWallDefFile::tileFile(const QString &daxPath)
+{
+    QString daa = daxPath;
+    daa.replace(daa.size() - 4, 4, QStringLiteral(".daa"));
+    const QString amiga = resolveExisting(daa);
+    if (QFileInfo::exists(amiga))
+        return amiga;
+    return resolveExisting(daxPath);
+}
+
 int DaxWallDefFile::bitmapCount(int blockId, const QString &fileName)
 {
-    const QString resolved = resolveExisting(fileName);
-    if (!QFileInfo::exists(resolved))
-        return 0;
-
-    DaxImageFile file(resolved);
-    int count = 0;
-    for (int id : file.bitmapIds()) {
-        if (id == blockId)
-            ++count;
-    }
-    return count;
+    return static_cast<int>(tileBlocks(resolveExisting(fileName)).value(blockId).size());
 }
 
 void DaxWallDefFile::loadBitmaps(int blockId, const QString &fileName, QVector<QImage> &target)
 {
-    const QString resolved = resolveExisting(fileName);
-    if (!QFileInfo::exists(resolved))
-        return;
-
-    DaxImageFile file(resolved);
-    for (int i = 0; i < file.bitmaps().size(); ++i) {
-        if (file.bitmapIds().value(i, -1) == blockId)
-            target.append(file.bitmaps().at(i));
-    }
+    target += tileBlocks(resolveExisting(fileName)).value(blockId);
 }

@@ -85,7 +85,6 @@ struct Voice
     int paulaVolume = 0;    // 0..64
     int noteOffAt = -1;     // scheduled release (fixed point ticks << 8)
     qint64 noteOffLeft = 0;
-    int lastPairChoice = 0;
 };
 
 // $524a8: period = 2^(value / $10000) (table driven in the original).
@@ -286,26 +285,56 @@ private:
         }
     }
 
-    // $51d1e: lowest state wins, the channel's side pair first (0/3 or 1/2).
+    // $51d1e (Dark Queen), $4b16e (Pools): the voice for a new note.
+    // Start with the channel's side pair (0/3 left, 1/2 right), or the other
+    // pair when no voice of this one is free or releasing but one of the
+    // other is (Dark Queen skips this for channels 8-15). In a pair the voice
+    // with the lower state comes first, equal states alternate (two bytes of
+    // the driver remember the last choice per pair). A voice is taken when
+    // the new note's priority (its channel; channel & 7 in Dark Queen) is at
+    // least the priority of the note it plays (its channel, 0 when free):
+    // the voice's pair partner, then the other pair, are tried; when none can
+    // be taken the note is not played.
     int allocate(int channel)
     {
-        const int pair = m_channels[channel].rightPair ? 1 : 0;
-        auto pairMin = [this](int first) {
-            return qMin(m_voices[first].state, m_voices[first ^ 3].state);
-        };
-        int start = pair;
-        if (pairMin(pair) > 3 && pairMin(pair ^ 1) <= 3)
-            start = pair ^ 1;
-        int best = -1;
-        for (int first : {start, start ^ 1}) {
-            for (int v : {first, first ^ 3}) {
-                if (best < 0 || m_voices[v].state < m_voices[best].state)
-                    best = v;
-            }
-            if (best >= 0 && m_voices[best].state <= 3)
-                break;
+        const bool darkQueen = m_file.driver() == MxMusicFile::DarkQueen;
+        const int priority = darkQueen ? (channel & ~8) : channel;
+        int d0 = m_channels[channel].rightPair ? 1 : 0;
+        if (!(darkQueen && (channel & 8))) {
+            auto pairMin = [this](int first) {
+                return qMin(m_voices[first].state, m_voices[first ^ 3].state);
+            };
+            if (pairMin(d0) > 3 && pairMin(d0 ^ 1) <= 3)
+                d0 ^= 1;
         }
-        return best;
+        int tieIndex = 0;
+        auto best = [this, &tieIndex](int v) {   // $51e0a
+            tieIndex = ((v - 1) & 2) ? 1 : 0;
+            const int diff = m_voices[v].state - m_voices[v ^ 3].state;
+            if (diff < 0)
+                return v;
+            if (diff > 0)
+                return v ^ 3;
+            return (v & 2) == m_pairChoice[tieIndex] ? v ^ 3 : v;
+        };
+        auto takes = [this, priority](int v) {
+            const Voice &voice = m_voices[v];
+            return priority >= (voice.channel < 0 ? 0 : voice.channel);
+        };
+        int v = best(d0);
+        if (!takes(v)) {
+            v ^= 3;
+            if (!takes(v)) {
+                v = best(v ^ 1);
+                if (!takes(v)) {
+                    v ^= 3;
+                    if (!takes(v))
+                        return -1;
+                }
+            }
+        }
+        m_pairChoice[tieIndex] = v & 2;
+        return v;
     }
 
     // $52a52
@@ -530,6 +559,7 @@ private:
     qint64 m_increment = 0;
     qint64 m_position = 0;
     qint64 m_eventTime = 0;
+    int m_pairChoice[2] = {0, 0};
     int m_next = 0;
     bool m_ended = false;
     int m_rampFrom = 0;

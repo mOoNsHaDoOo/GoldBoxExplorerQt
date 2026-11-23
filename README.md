@@ -25,7 +25,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.96**.
+Current version: **0.97**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -58,7 +58,7 @@ project is portable to Linux and Windows.
 | Amiga / DAA assets | Native Amiga DAA containers (big-endian index, SSI RLE, 9-byte image header, 64-byte Amiga palette, 5-plane planar images, 8×8 4bpp tile blocks), plus `.DAA`, `.DAI`, `.IFF`, `.LBM`, `.ILBM`, `.ANIM` auto-detection for IFF ILBM/PBM, IFF ANIM base frames, IFF 8SVX audio, and DAX containers; otherwise chunk metadata, strings, and hex |
 | Data viewers | FRUA characters (`.SAV`, `.ITM`, `.SPC`, `MON*CHA.DAX` when in Pool of Radiance), item tables, Amiga item/effect DAX records (`ITEM*.DAX`, `MON*ITM.DAX`, `MON*SPC.DAX`, `MON*CHA.DAX`), the Amiga `items` template table, `Sound/periodTable`, `GAME001.DAT`, `SAVGAM*.CSV`, vault files |
 | GEO (.DAT) | Module summary and grid dump |
-| GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with multi-wallset textures, movement, strafing, rotation, map cursor sync, and event→ECL navigation |
+| GEODAX (.DAX) | Per-map 2D renderer with rooms, walls, doors, and events; first-person view with multi-wallset textures (Amiga `8X8D*.DAA` tiles used when present), keyboard movement (arrows/WASD, Q/E strafe), rotation, map cursor sync, and event→ECL navigation; `--fp GEOFILE MAP MOVES OUT.png` |
 | ECL (.DAX) | Per-block **ECL Basic** listing for *Champions of Krynn* (Amiga) programs (labels, tables, named variables, search, label list, Ctrl+click jumps), extracted strings, combined ECL text, **bytecode disassembly** with GOTO/GOSUB/ON GOTO control-flow following, operand/memory labels, and raw hex; `--ecl-basic` CLI |
 
 ### Recent additions

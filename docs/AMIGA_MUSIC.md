@@ -5,14 +5,15 @@
 | Pool of Radiance | inside the executable `program` ("(c)Wally Beben 1988 music on the Amiga"), 6 songs | Wally Beben's replay routine, run from the original code |
 | Curse of the Azure Bonds | `CURSE.SLB` (3 songs) | SLB sequencer and synth |
 | Secret of the Silver Blades | `secret.mx` (7 songs); `SECRET.SLB` (1 song) when the MX music is not loaded | MX driver / SLB |
-| Pools of Darkness | `pod.mx` (8 songs) | MX driver (the SLB code is linked, no `.SLB` file on the disks) |
+| Pools of Darkness | `pod.mx` (8 songs) | MX driver (the SLB loader is linked but never called) |
 | Dark Queen of Krynn | `dqk.mx` (8 songs); `MUSIC.SLB` (8 songs) when the MX music is not loaded | MX driver / SLB |
 
 Dark Queen of Krynn loads `dqk.mx` and plays it when that worked, else it
 loads `music.slb` (code $36456). Secret of the Silver Blades does the same
 (code $31d76, $31df4): it loads `secret.mx` when the MX driver starts
 ($4ac0a) and a 57 KB block is free (AvailMem, $45716), else `secret.slb`.
-Pools of Darkness links the same SLB code but its disks have no `.SLB`.
+Pools of Darkness links the same SLB code, but nothing calls its loader
+($3f1bc): the game plays `pod.mx` only.
 `sounds.glb` holds the sound effects.
 
 ## Pool of Radiance: Wally Beben's player
@@ -108,9 +109,13 @@ Dark Queen's, the differences that touch the music files are:
   from the frame of the note on. The player follows the game (by file name:
   `secret.mx`, `pod.mx`);
 * voice choice: Dark Queen does not prefer the channel's voice pair for
-  channels 8-15, Secret always does (the files use channels 0-4 only);
-* controller handling (volume flags, mono/poly), not used by `secret.mx`
-  (notes, one tempo and the end only);
+  channels 8-15 and compares priorities with channel & 7; Secret and Pools
+  always prefer the pair and use the whole channel (`pod.mx` uses channel
+  8);
+* controller handling: Dark Queen also flags the channel for a pitch update
+  after controller 7 (volume); the voice volumes are computed every frame
+  in both, so it sounds the same (`pod.mx` uses controller 7, `secret.mx`
+  only notes, one tempo and the end);
 * Secret waits a raster line before restarting Paula DMA on Kickstart 1.x,
   Dark Queen checks the beam position in its interrupt: hardware timing only.
 Implementation: `src/parse/mxmusic.*`, viewer `src/plugins/mxtxplugin.cpp`,
@@ -149,8 +154,15 @@ Channel n plays instrument n (the files have no program changes).
 
 ### Voices ($51c80-$52130)
 
-* Four Paula voices; a note takes the voice with the lowest state (free,
-  then releasing), the channel's pair first (0/3 left, 1/2 right).
+* Four Paula voices ($51d1e). A note starts from the channel's side pair
+  (0/3 left, 1/2 right), or the other pair when no voice of its own is free
+  or releasing and one of the other is. In a pair the voice with the lower
+  state is tried first (equal states alternate: two bytes of the driver
+  remember the last choice per pair), then its partner, then the same in
+  the other pair. A voice is taken only when the note's priority (its
+  channel) is at least that of the note the voice plays (its channel until
+  the voice stops, 0 when free); otherwise the note is not played. Busy
+  arrangements drop a few low-channel notes this way, as in the game.
 * Pitch: `log = $9FD77 - ((note << 8) + (tune << 8) / 24 + bend - $2D00) * 4/3 * 16`,
   period = 2^(log / $10000); while the period is above about 509 and a longer
   sample exists, the next sample is taken and the period halved. A 32-byte

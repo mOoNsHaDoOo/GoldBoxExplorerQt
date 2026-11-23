@@ -40,6 +40,7 @@ private:
     static QImage bitmapZero();
     static QString universalTileFileName(const QString &fileName);
     static QString resolveExisting(const QString &path);
+    static QString tileFile(const QString &daxPath);
     static int bitmapCount(int blockId, const QString &fileName);
     static void loadBitmaps(int blockId, const QString &fileName, QVector<QImage> &target);
 

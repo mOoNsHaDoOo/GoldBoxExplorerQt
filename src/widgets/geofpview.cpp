@@ -1,6 +1,7 @@
 #include "widgets/geofpview.h"
 
 #include <QGridLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
@@ -81,7 +82,7 @@ GeoFirstPersonView::GeoFirstPersonView(const GeoMapRecord &map,
     m_view = new QLabel;
     m_view->setFixedSize(kViewWidth * kScale, kViewHeight * kScale);
     m_view->setAlignment(Qt::AlignCenter);
-    m_view->setStyleSheet(QStringLiteral("background: white; border: 1px solid #3355aa;"));
+    m_view->setStyleSheet(QStringLiteral("background: black; border: 1px solid #3355aa;"));
     layout->addWidget(m_view, 0, Qt::AlignHCenter);
 
     m_status = new QLabel;
@@ -107,20 +108,71 @@ GeoFirstPersonView::GeoFirstPersonView(const GeoMapRecord &map,
     auto addButton = [this, grid](const QString &text, int row, int column,
                                   void (GeoFirstPersonView::*slot)()) {
         auto *button = new QPushButton(text);
+        button->setFocusPolicy(Qt::NoFocus);   // the arrow keys stay with the view
         connect(button, &QPushButton::clicked, this, slot);
         grid->addWidget(button, row, column);
     };
 
-    addButton(QStringLiteral("Rotate left"), 0, 0, &GeoFirstPersonView::rotateLeft);
-    addButton(QStringLiteral("Forward"), 0, 1, &GeoFirstPersonView::moveForward);
-    addButton(QStringLiteral("Rotate right"), 0, 2, &GeoFirstPersonView::rotateRight);
-    addButton(QStringLiteral("Strafe left"), 1, 0, &GeoFirstPersonView::moveLeft);
-    addButton(QStringLiteral("Backward"), 1, 1, &GeoFirstPersonView::moveBackward);
-    addButton(QStringLiteral("Strafe right"), 1, 2, &GeoFirstPersonView::moveRight);
+    addButton(QStringLiteral("Rotate left (A, \u2190)"), 0, 0, &GeoFirstPersonView::rotateLeft);
+    addButton(QStringLiteral("Forward (W, \u2191)"), 0, 1, &GeoFirstPersonView::moveForward);
+    addButton(QStringLiteral("Rotate right (D, \u2192)"), 0, 2, &GeoFirstPersonView::rotateRight);
+    addButton(QStringLiteral("Strafe left (Q)"), 1, 0, &GeoFirstPersonView::moveLeft);
+    addButton(QStringLiteral("Backward (S, \u2193)"), 1, 1, &GeoFirstPersonView::moveBackward);
+    addButton(QStringLiteral("Strafe right (E)"), 1, 2, &GeoFirstPersonView::moveRight);
     layout->addLayout(grid);
+
+    auto *hint = new QLabel(QStringLiteral("Click the view, then move with the arrow keys or WASD; Q/E step sideways."));
+    hint->setAlignment(Qt::AlignCenter);
+    hint->setEnabled(false);
+    layout->addWidget(hint);
+    setFocusPolicy(Qt::StrongFocus);
 
     updateView();
     updateStatus();
+}
+
+void GeoFirstPersonView::keyPressEvent(QKeyEvent *event)
+{
+    const bool shift = event->modifiers() & Qt::ShiftModifier;
+    switch (event->key()) {
+    case Qt::Key_Up: case Qt::Key_W: case Qt::Key_8: moveForward(); break;
+    case Qt::Key_Down: case Qt::Key_S: case Qt::Key_2: moveBackward(); break;
+    case Qt::Key_Left: if (shift) moveLeft(); else rotateLeft(); break;
+    case Qt::Key_Right: if (shift) moveRight(); else rotateRight(); break;
+    case Qt::Key_A: case Qt::Key_4: rotateLeft(); break;
+    case Qt::Key_D: case Qt::Key_6: rotateRight(); break;
+    case Qt::Key_Q: case Qt::Key_7: moveLeft(); break;
+    case Qt::Key_E: case Qt::Key_9: moveRight(); break;
+    default: QWidget::keyPressEvent(event); return;
+    }
+    event->accept();
+}
+
+void GeoFirstPersonView::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    setFocus();
+}
+
+void GeoFirstPersonView::mousePressEvent(QMouseEvent *event)
+{
+    setFocus();
+    QWidget::mousePressEvent(event);
+}
+
+void GeoFirstPersonView::applyMoves(const QString &moves)
+{
+    for (const QChar c : moves) {
+        switch (c.unicode()) {
+        case 'F': moveForward(); break;
+        case 'B': moveBackward(); break;
+        case 'L': rotateLeft(); break;
+        case 'R': rotateRight(); break;
+        case 'l': moveLeft(); break;
+        case 'r': moveRight(); break;
+        default: break;
+        }
+    }
 }
 
 void GeoFirstPersonView::moveForward()
@@ -276,7 +328,7 @@ GeoWallRecord GeoFirstPersonView::mapAt(int x, int y) const
 QImage GeoFirstPersonView::renderView() const
 {
     QImage image(kViewWidth, kViewHeight, QImage::Format_ARGB32);
-    image.fill(Qt::white);
+    image.fill(Qt::black);   // the games draw the 3D window on black
     QPainter painter(&image);
 
     const QString &facing = m_facing;

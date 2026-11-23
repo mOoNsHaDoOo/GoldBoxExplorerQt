@@ -16,6 +16,7 @@
 #include "dax/walldef.h"
 #include "widgets/walltemplateexportdialog.h"
 #include "widgets/audioview.h"
+#include "widgets/geofpview.h"
 #include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -24,11 +25,13 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QStackedWidget>
 #include <QStyleFactory>
 #include <QTimer>
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 #include <typeinfo>
 
@@ -86,7 +89,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.96"));
+    QApplication::setApplicationVersion(QStringLiteral("0.97"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -186,6 +189,37 @@ int main(int argc, char *argv[])
             qInfo().noquote() << QStringLiteral("%1 ms").arg(out.durationMs());
         }
         return 0;
+    }
+
+    // First-person view of a GEO map after some moves:
+    // --fp GEOFILE MAP MOVES OUT.png (MAP from 0; MOVES: F B L R l r, "-" for none).
+    if (argc >= 6 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--fp")) {
+        std::unique_ptr<Plugin> plugin = PluginFactory::createForFile(QString::fromLocal8Bit(argv[2]));
+        PluginParameters parameters;
+        parameters.filename = QString::fromLocal8Bit(argv[2]);
+        QWidget *viewer = plugin ? plugin->createViewer(parameters) : nullptr;
+        // the views in the order of the map menu (the pages of their stack)
+        QList<GeoFirstPersonView *> views;
+        if (viewer) {
+            if (auto *first = viewer->findChild<GeoFirstPersonView *>()) {
+                if (auto *stack = qobject_cast<QStackedWidget *>(first->parentWidget())) {
+                    for (int i = 0; i < stack->count(); ++i)
+                        if (auto *view = qobject_cast<GeoFirstPersonView *>(stack->widget(i)))
+                            views.append(view);
+                }
+            }
+        }
+        const int map = QString::fromLocal8Bit(argv[3]).toInt();
+        if (map < 0 || map >= views.size()) {
+            qWarning().noquote() << "no first-person view" << map << "of" << views.size();
+            return 1;
+        }
+        GeoFirstPersonView *view = views.at(map);
+        const QString moves = QString::fromLocal8Bit(argv[4]);
+        if (moves != QStringLiteral("-"))
+            view->applyMoves(moves);
+        qInfo().noquote() << QStringLiteral("x %1 y %2 facing %3").arg(view->cursorX()).arg(view->cursorY()).arg(view->facing());
+        return view->viewImage().save(QString::fromLocal8Bit(argv[5])) ? 0 : 1;
     }
 
     // Lists the inner blocks of a multi-block file (DAX, DAA, GLB, TLB).

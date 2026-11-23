@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.96.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.97.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -150,6 +150,16 @@ if(BUILD_TESTING)
         set_tests_properties(mx_render PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              PASS_REGULAR_EXPRESSION "song 1: 7 events, 4 notes, tempo 120, channels 0")
+    endif()
+
+    # First-person view of a synthetic GEO map after some moves (keys/CLI).
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/GEO1.DAX")
+        add_test(NAME fp_geo
+                 COMMAND gbexplorer --fp "${CMAKE_CURRENT_SOURCE_DIR}/testdata/GEO1.DAX" 0 FLlB
+                         "${CMAKE_CURRENT_BINARY_DIR}/fp_test.png")
+        set_tests_properties(fp_geo PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             PASS_REGULAR_EXPRESSION "x 7 y 8 facing e")
     endif()
 
     # SLB song bank: one synthetic song played with the sequencer rules.

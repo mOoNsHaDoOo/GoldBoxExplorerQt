@@ -6,6 +6,9 @@
 #include <QVector>
 #include <QWidget>
 
+class QKeyEvent;
+class QMouseEvent;
+class QShowEvent;
 class QLabel;
 class QPushButton;
 
@@ -13,6 +16,8 @@ class QPushButton;
 // It composes the pre-rendered wall faces from WALLDEF*.DAX at the same
 // fixed screen positions as the upstream viewer and exposes movement,
 // rotation, multi-wallset selection, and ECL event cross-linking.
+// Keys: Up/W forward, Down/S backward, Left/A and Right/D turn, Q/E or
+// Shift+Left/Right step sideways.
 class GeoFirstPersonView : public QWidget
 {
     Q_OBJECT
@@ -25,6 +30,11 @@ public:
                        int eventBase = 0,
                        QWidget *parent = nullptr);
 
+    // Applies a sequence of moves (F forward, B backward, L/R rotate,
+    // l/r strafe) and returns the view as drawn (for tests and the CLI).
+    void applyMoves(const QString &moves);
+    QImage viewImage() const { return renderView(); }
+
     int cursorX() const { return m_x; }
     int cursorY() const { return m_y; }
     QString facing() const { return m_facing; }
@@ -32,6 +42,11 @@ public:
 signals:
     void positionChanged(int x, int y, const QString &facing);
     void showEclRequested(int blockId, int address);
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
     void moveForward();
