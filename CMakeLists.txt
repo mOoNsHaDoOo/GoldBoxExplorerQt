@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.98.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.99.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,6 +58,7 @@ add_executable(gbexplorer
     src/widgets/characterview.cpp
     src/widgets/audioview.cpp
     src/widgets/geofpview.cpp
+    src/widgets/tabordering.cpp
     src/widgets/walltemplateexportdialog.cpp
     src/widgets/eclbasicview.cpp
 
@@ -70,6 +71,7 @@ add_executable(gbexplorer
     src/plugins/contentplugins.cpp
     src/plugins/glbplugin.cpp
     src/plugins/slbplugin.cpp
+    src/plugins/fontplugin.cpp
     src/plugins/mxtxplugin.cpp
     src/plugins/containerplugin.cpp
     src/plugins/krynnviews.cpp
@@ -185,6 +187,15 @@ if(BUILD_TESTING)
         set_tests_properties(mx_trace PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              PASS_REGULAR_EXPRESSION "2 \\| 0 0 -1 \\| 0 0 -1 \\| 0 0 -1 \\| 509 50 0")
+    endif()
+
+    # 8x8 font of the Amiga Gold Box games.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.FON")
+        add_test(NAME smoke_TEST.FON
+                 COMMAND gbexplorer --smoke "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.FON")
+        set_tests_properties(smoke_TEST.FON PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             TIMEOUT 10)
     endif()
 
     # Death Knights of Krynn / Pool of Radiance record viewers.

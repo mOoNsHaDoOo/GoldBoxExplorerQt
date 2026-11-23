@@ -7,17 +7,27 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QProcess>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTemporaryFile>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QtEndian>
 
 #include <utility>
 
 namespace {
+
+QString clockText(qint64 milliseconds)
+{
+    return QStringLiteral("%1:%2.%3")
+        .arg(milliseconds / 60000)
+        .arg((milliseconds / 1000) % 60, 2, 10, QLatin1Char('0'))
+        .arg((milliseconds % 1000) / 100);
+}
 
 QString formatDuration(qint64 milliseconds)
 {
@@ -36,6 +46,58 @@ WaveformWidget::WaveformWidget(const AudioSample &sample, QWidget *parent)
 {
     setMinimumHeight(180);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setCursor(Qt::IBeamCursor);
+    setToolTip(QStringLiteral("Click or drag to move the play position"));
+}
+
+QRect WaveformWidget::waveArea() const
+{
+    return rect().adjusted(10, 10, -10, -10);
+}
+
+qint64 WaveformWidget::frameCount() const
+{
+    return m_sample.pcm.size() / (2 * qMax(1, m_sample.channels));
+}
+
+qint64 WaveformWidget::frameAt(int x) const
+{
+    const QRect area = waveArea();
+    if (area.width() <= 0)
+        return 0;
+    const qint64 frames = frameCount();
+    return qBound<qint64>(0, (static_cast<qint64>(x - area.left()) * frames) / area.width(), qMax<qint64>(0, frames - 1));
+}
+
+void WaveformWidget::setPosition(qint64 frame)
+{
+    if (frame == m_position)
+        return;
+    m_position = frame;
+    update();
+}
+
+void WaveformWidget::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton)
+        return;
+    m_dragging = true;
+    setPosition(frameAt(qRound(event->position().x())));
+}
+
+void WaveformWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if (m_dragging)
+        setPosition(frameAt(qRound(event->position().x())));
+}
+
+void WaveformWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (!m_dragging || event->button() != Qt::LeftButton)
+        return;
+    m_dragging = false;
+    setPosition(frameAt(qRound(event->position().x())));
+    emit seekRequested(m_position);
 }
 
 void WaveformWidget::paintEvent(QPaintEvent *)
@@ -43,7 +105,7 @@ void WaveformWidget::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.fillRect(rect(), QColor(18, 22, 26));
 
-    const QRect area = rect().adjusted(10, 10, -10, -10);
+    const QRect area = waveArea();
     painter.setPen(QColor(50, 60, 70));
     painter.drawLine(area.left(), area.center().y(), area.right(), area.center().y());
 
@@ -69,7 +131,17 @@ void WaveformWidget::paintEvent(QPaintEvent *)
         const int bottom = area.center().y() - (static_cast<int>(low) * area.height()) / 65536;
         painter.drawLine(area.left() + x, top, area.left() + x, bottom);
     }
+
+    // the play position
+    const qint64 frames = frameCount();
+    if (frames > 0) {
+        const int x = area.left() + static_cast<int>((m_position * area.width()) / frames);
+        painter.setPen(QPen(QColor(255, 210, 60), 2));
+        painter.drawLine(x, rect().top(), x, rect().bottom());
+    }
 }
+
+QPointer<AudioView> AudioView::s_playing;
 
 AudioView::AudioView(AudioSample sample, QWidget *parent)
     : QWidget(parent)
@@ -90,15 +162,21 @@ AudioView::AudioView(AudioSample sample, QWidget *parent)
                                 .arg(formatDuration(m_sample.durationMs())));
     layout->addWidget(info);
 
-    layout->addWidget(new WaveformWidget(m_sample, this), 1);
+    m_wave = new WaveformWidget(m_sample, this);
+    layout->addWidget(m_wave, 1);
+    connect(m_wave, &WaveformWidget::seekRequested, this, &AudioView::seek);
 
     auto *buttons = new QHBoxLayout;
     auto *playButton = new QPushButton(QStringLiteral("Play"));
     auto *stopButton = new QPushButton(QStringLiteral("Stop"));
     auto *saveButton = new QPushButton(QStringLiteral("Save WAV..."));
+    m_time = new QLabel;
+    m_time->setFont(QFont(QStringLiteral("Courier New"), 10));
     buttons->addWidget(playButton);
     buttons->addWidget(stopButton);
     buttons->addWidget(saveButton);
+    buttons->addSpacing(12);
+    buttons->addWidget(m_time);
     buttons->addStretch(1);
     layout->addLayout(buttons);
 
@@ -106,9 +184,14 @@ AudioView::AudioView(AudioSample sample, QWidget *parent)
     m_status->setStyleSheet(QStringLiteral("color: #666;"));
     layout->addWidget(m_status);
 
+    m_timer = new QTimer(this);
+    m_timer->setInterval(30);
+    connect(m_timer, &QTimer::timeout, this, &AudioView::tick);
+
     connect(playButton, &QPushButton::clicked, this, &AudioView::play);
     connect(stopButton, &QPushButton::clicked, this, &AudioView::stop);
     connect(saveButton, &QPushButton::clicked, this, &AudioView::saveWav);
+    updateTimeLabel();
 }
 
 AudioView::~AudioView()
@@ -117,11 +200,64 @@ AudioView::~AudioView()
     cleanupTemp();
 }
 
+void AudioView::stopAll()
+{
+    if (s_playing)
+        s_playing->stop();
+}
+
+qint64 AudioView::currentFrame() const
+{
+    if (!m_process || m_sample.sampleRate <= 0)
+        return m_wave->position();
+    const qint64 frames = m_sample.pcm.size() / (2 * qMax(1, m_sample.channels));
+    return qMin(frames, m_startFrame + m_clock.elapsed() * m_sample.sampleRate / 1000);
+}
+
+void AudioView::updateTimeLabel()
+{
+    if (!m_time)
+        return;
+    const qint64 rate = qMax(1, m_sample.sampleRate);
+    m_time->setText(QStringLiteral("%1 / %2")
+                        .arg(clockText(m_wave->position() * 1000 / rate))
+                        .arg(clockText(m_sample.durationMs())));
+}
+
+void AudioView::tick()
+{
+    if (!m_wave->dragging())
+        m_wave->setPosition(currentFrame());
+    updateTimeLabel();
+}
+
+void AudioView::seek(qint64 frame)
+{
+    const bool playing = m_process;
+    if (playing)
+        stop();
+    m_wave->setPosition(frame);
+    updateTimeLabel();
+    if (playing)
+        play();   // go on playing from the new position
+}
+
 void AudioView::play()
 {
+    // one sound at a time
+    if (s_playing && s_playing != this)
+        s_playing->stop();
+    const qint64 from = m_process ? currentFrame() : m_wave->position();
     stop();
     if (!m_sample.valid || m_sample.pcm.isEmpty())
         return;
+
+    const int bytesPerFrame = 2 * qMax(1, m_sample.channels);
+    const qint64 frames = m_sample.pcm.size() / bytesPerFrame;
+    m_startFrame = (from >= frames - 1) ? 0 : qMax<qint64>(0, from);
+    AudioSample part = m_sample;
+    part.pcm = m_sample.pcm.mid(m_startFrame * bytesPerFrame);
+    part.frameCount = static_cast<int>(part.pcm.size() / bytesPerFrame);
 
     QTemporaryFile temp(QDir::tempPath() + QStringLiteral("/gbexplorer-XXXXXX.wav"));
     temp.setAutoRemove(false);
@@ -130,7 +266,7 @@ void AudioView::play()
                              QStringLiteral("Unable to create a temporary WAV file."));
         return;
     }
-    temp.write(m_sample.toWav());
+    temp.write(part.toWav());
     m_tempWav = temp.fileName();
     temp.close();
 
@@ -165,37 +301,54 @@ void AudioView::play()
 
     if (program.isEmpty()) {
         m_status->setText(QStringLiteral("No audio player found. Use “Save WAV...” and open it externally."));
+        cleanupTemp();
         return;
     }
 
-    m_process = new QProcess(this);
-    connect(m_process, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {
+    QProcess *process = new QProcess(this);
+    m_process = process;
+    connect(process, &QProcess::finished, this, [this, process](int, QProcess::ExitStatus) {
+        if (m_process != process)
+            return;   // stopped or replaced by a new play
+        m_process = nullptr;
+        process->deleteLater();
+        m_timer->stop();
+        if (s_playing == this)
+            s_playing = nullptr;
+        m_wave->setPosition(0);   // played to the end: back to the start
+        updateTimeLabel();
         if (m_status)
             m_status->setText(QStringLiteral("Playback finished."));
-        if (m_process) {
-            m_process->deleteLater();
-            m_process = nullptr;
-        }
         cleanupTemp();
     });
-    connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+    connect(process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
         if (m_status)
             m_status->setText(QStringLiteral("Could not start the audio player."));
     });
     m_status->setText(QStringLiteral("Playing..."));
-    m_process->start(program, arguments);
+    s_playing = this;
+    m_clock.start();
+    m_timer->start();
+    process->start(program, arguments);
+    tick();
 }
 
 void AudioView::stop()
 {
     QProcess *process = m_process.data();
-    m_process = nullptr;
     if (!process)
         return;
+    const qint64 at = currentFrame();
+    m_process = nullptr;
+    m_timer->stop();
+    if (s_playing == this)
+        s_playing = nullptr;
 
     process->kill();
     process->waitForFinished(1000);
     process->deleteLater();
+    m_wave->setPosition(at);   // Play goes on from here
+    updateTimeLabel();
     if (m_status)
         m_status->setText(QStringLiteral("Stopped."));
     cleanupTemp();

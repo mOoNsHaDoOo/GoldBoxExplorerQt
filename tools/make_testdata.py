@@ -222,6 +222,7 @@ def main() -> None:
     make_zip(OUT)
     make_mx(OUT)
     make_slb(OUT)
+    make_font(OUT)
     print(f"Wrote synthetic test files to {OUT}")
 
 
@@ -614,6 +615,16 @@ def make_slb(out: Path) -> None:
     size = 10 + len(table) + len(song)
     data = b"SLBR" + struct.pack(">IBB", size, 1, 0) + table + song
     (out / "TEST.SLB").write_bytes(data)
+
+
+def make_font(out: Path) -> None:
+    """TEST.FON: an 8x8 font of the Amiga Gold Box games, 96 characters from
+    ASCII 32; every glyph is a box with its code's low bits inside."""
+    data = bytearray()
+    for code in range(32, 128):
+        rows = [0xFF] + [0x81 | ((code >> (r % 7)) & 1) << 3 for r in range(6)] + [0xFF]
+        data += bytes(rows)
+    (out / "TEST.FON").write_bytes(bytes(data))
 
 
 if __name__ == "__main__":

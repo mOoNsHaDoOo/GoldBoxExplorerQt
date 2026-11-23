@@ -87,6 +87,8 @@ std::unique_ptr<Plugin> createForFile(const QString &path)
         return std::make_unique<FontPlugin>();
     if (matches<SlbPlugin>(path))
         return std::make_unique<SlbPlugin>();
+    if (matches<GoldBoxFontPlugin>(path))
+        return std::make_unique<GoldBoxFontPlugin>();
     if (matches<MxtxPlugin>(path))
         return std::make_unique<MxtxPlugin>();
     if (matches<AmigaSystemPlugin>(path))

@@ -37,6 +37,10 @@ struct AmigaTileImage
     int planes = 0;
     int xOffset = 0;
     int yOffset = 0;
+    // method 1 with every bitplane 0: only the mask has a shape (combat
+    // sprites of COMSPR.TLB); drawn in a light grey, the game probably fills
+    // the shape with a colour of its choice
+    bool maskOnly = false;
 };
 
 struct AmigaTileResult

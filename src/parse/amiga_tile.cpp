@@ -212,7 +212,29 @@ private:
             if (!m_havePalette)
                 m_result.usedFallbackPalette = true;
             AmigaTileImage image;
-            image.image = render(frame, m_palette);
+            // every pixel inside the mask has colour 0?
+            auto onlyMask = [&frame, planeSize]() {
+                if (frame.mask.isEmpty())
+                    return false;
+                for (int b = 0; b < planeSize; ++b) {
+                    const quint8 m = static_cast<quint8>(frame.mask.at(b));
+                    for (const QByteArray &p : frame.planes)
+                        if (static_cast<quint8>(p.at(b)) & m)
+                            return false;
+                }
+                return true;
+            };
+            if (kind == 1 && onlyMask()) {
+                // only the mask: show the shape instead of black on black
+                QVector<QRgb> shape = m_palette;
+                if (shape.isEmpty())
+                    shape.append(0);
+                shape[0] = qRgb(0xD0, 0xD0, 0xD0);
+                image.image = render(frame, shape);
+                image.maskOnly = true;
+            } else {
+                image.image = render(frame, m_palette);
+            }
             image.library = libraryIndex;
             image.index = i;
             image.method = method;

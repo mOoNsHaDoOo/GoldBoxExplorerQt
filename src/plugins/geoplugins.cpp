@@ -46,6 +46,7 @@ public:
         : QWidget(parent)
         , m_map(map)
     {
+        setProperty("gbVisual", true);   // see VisualTabsFirst
         setZoom(1.0f);
     }
 

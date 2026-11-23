@@ -334,9 +334,14 @@ bool Container::openTlb()
         e.index = i;
         e.id = i;
         e.images = {bitmaps.at(i)};
-        e.type = QStringLiteral("Image %1x%2").arg(bitmaps.at(i).width()).arg(bitmaps.at(i).height());
+        e.type = QStringLiteral("%1 %2x%3")
+                     .arg(tlb.imageIsMaskOnly(i) ? QStringLiteral("Mask sprite") : QStringLiteral("Image"))
+                     .arg(bitmaps.at(i).width()).arg(bitmaps.at(i).height());
         e.details = QStringLiteral("Decoded TLB image %1 (the stored bytes are not exposed by the TLB reader).")
                         .arg(i);
+        if (tlb.imageIsMaskOnly(i))
+            e.details += QStringLiteral("\nMask sprite: the bitplanes are empty, only the mask has a shape (shown in"
+                                        " light grey); the game probably fills it with a colour when it draws it.");
         entries.append(e);
     }
     m_format = Format::Tlb;

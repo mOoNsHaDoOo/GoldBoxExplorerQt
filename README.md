@@ -25,7 +25,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.98**.
+Current version: **0.99**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -47,7 +47,8 @@ project is portable to Linux and Windows.
 | TLB graphics | TILE and master libraries, drawing methods 16/17/18/21/23, internal/external colour tables, CBODY/CPIC combat icons; big-endian Amiga GLIB libraries with 4-plane (method 0) and 5-plane (method 1) planar images |
 | GLB containers | Big/little-endian `GLIB` archives (`.GLB`): container summary, block table with per-block hex, block export, TEXT strings, DIG8 sample playback, ECL strings, item/monster/effect record tables |
 | Image export | PNG/BMP/JPEG through the file context menu, same naming scheme as the original exporter |
-| Generic viewers | Text, PNG/JPEG/GIF/BMP/TGA/TIFF (as supported by Qt), and a fast hex viewer |
+| Generic viewers | Text, PNG/JPEG/GIF/BMP/TGA/TIFF (as supported by Qt), and a fast hex viewer. The tabs that show pictures, maps or sounds come first. Sounds and music: a play position line (click or drag to move it, Play goes on from there), one sound at a time |
+| Fonts | The 8x8 `.FON` fonts of the Amiga Gold Box games (`CURSE.FON`, `SECRET.FON`, `pod.fon`, `GAME.FON`): character sheet with zoom and a text preview |
 | Amiga audio | 8SVX/16SV IFF audio with waveform preview, metadata, playback, and WAV export; extensionless sounds detected by content |
 | Amiga DAX | Big-endian index + ByteKiller depacker; 4-plane planar images, ECL, GEO, WALLDEF, item/monster data, and the `pic`/`sprit`/`final` prefix variant |
 | Amiga music/instruments | IFF inspector for `FORM INST` (e.g. `Sound/cast4`), `FORM SMUS` (`Sound/krynn`) with sample-bank-driven playback, embedded sound banks (`Sound/soundData`), and referenced sample playback |

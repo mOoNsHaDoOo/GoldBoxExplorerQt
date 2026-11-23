@@ -29,6 +29,8 @@ public:
     QByteArray rawBytes() const { return m_bytes; }
 
     void loadBitmaps();
+    // Amiga sprites drawn from their mask only (see AmigaTileImage)
+    bool imageIsMaskOnly(int index) const { return m_maskOnly.value(index, false); }
     const QVector<QImage> &bitmaps() const { return m_bitmaps; }
     QVector<QPoint> imageOffsets() const;
     QStringList amigaErrors() const { return m_amigaErrors; }
@@ -81,6 +83,7 @@ private:
     QVector<quint32> m_offsets;
     QVector<QImage> m_bitmaps;
     QVector<QPoint> m_imageOffsets;
+    QVector<bool> m_maskOnly;   // Amiga method 1 images with empty bitplanes
     QVector<QRgb> m_palette;
     bool m_combatIcon = false;
     QStringList m_amigaErrors;

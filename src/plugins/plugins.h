@@ -239,6 +239,16 @@ public:
     QWidget *createViewer(const PluginParameters &parameters) override;
 };
 
+// 8x8 bitmap fonts of the Amiga Gold Box games (CURSE.FON, SECRET.FON,
+// pod.fon, GAME.FON): 96 characters from ASCII 32, 8 bytes each (one byte
+// per row, bit 7 on the left).
+class GoldBoxFontPlugin : public Plugin
+{
+public:
+    bool isSatisfiedBy(const QString &path) const override;
+    QWidget *createViewer(const PluginParameters &parameters) override;
+};
+
 class MxtxPlugin : public Plugin
 {
 public:

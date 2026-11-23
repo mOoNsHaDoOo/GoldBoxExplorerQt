@@ -17,6 +17,7 @@
 #include "widgets/walltemplateexportdialog.h"
 #include "widgets/audioview.h"
 #include "widgets/geofpview.h"
+#include "widgets/tabordering.h"
 #include "plugins/containerplugin.h"
 #include "plugins/pluginfactory.h"
 #include "plugins/plugins.h"
@@ -86,10 +87,11 @@ int main(int argc, char *argv[])
     }
 
     QApplication app(argc, argv);
+    app.installEventFilter(new VisualTabsFirst(&app));   // picture and sound tabs first
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.98"));
+    QApplication::setApplicationVersion(QStringLiteral("0.99"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));

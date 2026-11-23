@@ -441,6 +441,8 @@ bool TlbFile::loadAmigaTiles()
     for (const AmigaTileImage &image : result.images) {
         m_bitmaps.append(image.image);
         m_imageOffsets.append(QPoint(image.xOffset, image.yOffset));
+        m_maskOnly.resize(m_bitmaps.size());
+        m_maskOnly.last() = image.maskOnly;
     }
     m_amigaErrors = result.errors;
     return true;
