@@ -678,8 +678,13 @@ void M68k::step()
         d[reg] = (d[reg] & ~msk(sz)) | r;
         return;
     }
+    case 0xA:
+        if (onLineA && onLineA(op))
+            return;
+        illegal(op);
+        return;
     default:
-        illegal(op);   // line A (library calls), line F
+        illegal(op);   // line F
     }
 }
 

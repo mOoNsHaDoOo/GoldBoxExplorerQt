@@ -88,6 +88,7 @@ public:
 
     bool isValid() const { return m_valid; }
     QString errorString() const { return m_error; }
+    // the word after "MXTX": the tempo play starts with (BPM)
     int flags() const { return m_flags; }
     bool velocitySensitive() const { return m_flags2 & 2; }
     const QVector<MxSong> &songs() const { return m_songs; }
@@ -99,12 +100,24 @@ public:
         int sampleRate = 44100;
         bool pal = true;            // 50 Hz sequencer, PAL Paula clock
         int maxSeconds = 600;       // stop a song that never ends
-        int releaseSeconds = 3;     // time left for the last notes to fade
+        int releaseSeconds = 8;     // after the end: at most this long for the last notes
     };
     // Plays one song with the driver rules into stereo 16-bit PCM (Paula
     // channels 0/3 left, 1/2 right).
     AudioSample render(int song, const RenderOptions &options) const;
     AudioSample render(int song) const { return render(song, RenderOptions()); }
+
+    // The state of the four Paula voices after each vertical blank, as the
+    // driver hands it to audio.device: period, volume, and the part playing
+    // (1 = the one-shot write, 0 = the loop, -1 = nothing). For comparisons
+    // with the original driver (--mx-trace).
+    struct VoiceFrame
+    {
+        int period = 0;
+        int volume = 0;
+        int cycles = -1;
+    };
+    QVector<QVector<VoiceFrame>> trace(int song, int frames) const;
 
 private:
     QVector<MxSong> m_songs;

@@ -101,25 +101,45 @@ sets the volume to 0 and stops the channel's DMA.
 
 Reconstructed from the Dark Queen of Krynn executable (code hunk addresses).
 Secret of the Silver Blades ($4a1a6-$4c400) and Pools of Darkness link an
-earlier build of the same driver. Compared instruction by instruction with
-Dark Queen's, the differences that touch the music files are:
+earlier build of the same driver.
+Implementation: `src/parse/mxmusic.*`, viewer `src/plugins/mxtxplugin.cpp`,
+CLI `--mx-render FILE SONG OUT.wav` and `--mx-trace FILE SONG FRAMES`.
+
+### Checked against the games' own drivers
+
+`tools/mx_driver_compare.cpp` runs the original driver of Dark Queen, Secret
+or Pools in the 68000 interpreter (`src/core/m68k.*`): init, load from a
+fake dos.library, song select, play, then the vertical-blank server and the
+soft interrupt it causes, once per frame. exec (memory, lists, message
+ports, Cause) and audio.device (OpenDevice with channel allocation,
+CMD_WRITE queues per channel with cycles and replies, ADCMD_PERVOL,
+ADIOF_PERVOL, flush/finish/abort) are emulated as far as the driver uses
+them. It prints the period, volume and part (one-shot or loop) of the four
+voices after every frame, in the format of `--mx-trace`.
+
+Over the first two minutes of every song the traces are identical for
+`dqk.mx`, `secret.mx` and `pod.mx`, except for 2 frames of a Dark Queen song
+(the frame a one-shot part hands over to its loop: the fake audio.device
+advances per frame) and 16 frames of a Pools song where the game keeps a
+voice running at volume 0 that the player has stopped (silent either way).
+
+What the comparison corrected in the player: play starts at the file's
+tempo (the word after "MXTX", $532c6) and the first frame advances with it
+before the song's tempo event; odd channels start on the right pair
+($521e4); a voice whose one-shot sample (no loop) has played is free again
+(the write is returned, $521b2); the exact table-driven period ($524a8); the
+tempo ramp comparison (signed word: ramps of $8000 ticks or more, like the
+64000 of `pod.mx`, change the tempo at once) and its 32-bit arithmetic;
+after the end of a song the pending note offs still run.
+
+Differences between the builds that matter for the files:
 
 * note length: Dark Queen ($52fee) shortens a note by the time its event was
-  served late (event time - current time), Secret and Pools start counting
-  from the frame of the note on. The player follows the game (by file name:
-  `secret.mx`, `pod.mx`);
-* voice choice: Dark Queen does not prefer the channel's voice pair for
-  channels 8-15 and compares priorities with channel & 7; Secret and Pools
-  always prefer the pair and use the whole channel (`pod.mx` uses channel
-  8);
-* controller handling: Dark Queen also flags the channel for a pitch update
-  after controller 7 (volume); the voice volumes are computed every frame
-  in both, so it sounds the same (`pod.mx` uses controller 7, `secret.mx`
-  only notes, one tempo and the end);
+  served late (event time - current time), Secret and Pools count from the
+  frame of the note on. The player follows the game by file name
+  (`secret.mx`, `pod.mx`); the traces confirm both rules;
 * Secret waits a raster line before restarting Paula DMA on Kickstart 1.x,
-  Dark Queen checks the beam position in its interrupt: hardware timing only.
-Implementation: `src/parse/mxmusic.*`, viewer `src/plugins/mxtxplugin.cpp`,
-CLI `--mx-render FILE SONG OUT.wav`.
+  Dark Queen checks the beam position in its interrupt: hardware timing.
 
 ### File ($53a5e)
 
@@ -155,16 +175,16 @@ Channel n plays instrument n (the files have no program changes).
 ### Voices ($51c80-$52130)
 
 * Four Paula voices ($51d1e). A note starts from the channel's side pair
-  (0/3 left, 1/2 right), or the other pair when no voice of its own is free
-  or releasing and one of the other is. In a pair the voice with the lower
-  state is tried first (equal states alternate: two bytes of the driver
-  remember the last choice per pair), then its partner, then the same in
-  the other pair. A voice is taken only when the note's priority (its
-  channel) is at least that of the note the voice plays (its channel until
-  the voice stops, 0 when free); otherwise the note is not played. Busy
-  arrangements drop a few low-channel notes this way, as in the game.
+  (0/3 left, 1/2 right; odd channels right unless controller 10 moves them,
+  $40 puts them back), or the other pair when no voice of its own is free or
+  releasing and one of the other is. In the pair the voice with the lower
+  state is taken; equal states alternate (two bytes of the driver remember
+  the last choice per pair). The driver has priorities for notes played
+  through its other entry ($53638, the game's sound effects); the sequencer
+  plays every note with priority 0, so a music note always gets a voice.
 * Pitch: `log = $9FD77 - ((note << 8) + (tune << 8) / 24 + bend - $2D00) * 4/3 * 16`,
-  period = 2^(log / $10000); while the period is above about 509 and a longer
+  period = 2^(log / $10000) from a 257-word table of 2^(i/256) with linear
+  interpolation and rounding ($524a8); while the period is above about 509 and a longer
   sample exists, the next sample is taken and the period halved. A 32-byte
   cycle sounds at the written note.
 * Envelope state machine: attack/decay table (time ms, level), sustain,

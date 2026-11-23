@@ -34,6 +34,10 @@ public:
               uint64_t maxInstructions = 5000000);
     void setStackTop(uint32_t top) { m_stackTop = top; }
 
+    // line-A opcodes ($Axxx, used for fake library jump tables): return true
+    // when handled (the handler sets the registers and pc), else the CPU halts
+    std::function<bool(uint16_t opcode)> onLineA;
+
     // called before the instruction at watchAddress runs
     uint32_t watchAddress = 0xFFFFFFFFu;
     std::function<void()> onWatch;

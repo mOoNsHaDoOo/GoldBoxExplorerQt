@@ -5,6 +5,7 @@
 #include <QtEndian>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace {
@@ -87,12 +88,37 @@ struct Voice
     qint64 noteOffLeft = 0;
 };
 
-// $524a8: period = 2^(value / $10000) (table driven in the original).
+// $524a8: period = 2^(value / $10000), as the driver computes it: a table
+// of 2^(i/256) for the high byte of the fraction (257 words,
+// round(65536 * (2^(i/256) - 1))), linear interpolation on the low byte,
+// the implicit leading 1, a right shift by 31 - exponent and rounding with
+// the last bit shifted out.
 int periodFor(qint64 logValue)
 {
     if (logValue < 0x6f73d)
         return 0; // too high for Paula: the driver leaves the voice silent
-    return static_cast<int>(std::lround(std::pow(2.0, static_cast<double>(logValue) / 65536.0)));
+    static const auto table = [] {
+        std::array<quint16, 257> t{};
+        for (int i = 0; i < 257; ++i)
+            t[i] = static_cast<quint16>(std::lround(65536.0 * (std::pow(2.0, i / 256.0) - 1.0)) & 0xFFFF);
+        return t;
+    }();
+    const quint32 x = static_cast<quint32>(logValue);
+    const quint32 exponent = x >> 16;
+    if (exponent >= 32)
+        return 0;
+    const quint32 fraction = x & 0xFFFF;
+    const quint32 index = fraction >> 8;
+    const quint16 t0 = table[index];
+    const quint32 step = static_cast<quint16>(table[index + 1] - t0);
+    const quint32 weight = static_cast<quint16>((fraction << 8) + 0x80);
+    const quint32 mantissa = static_cast<quint16>(t0 + ((step * weight) >> 16));
+    const quint32 value = 0x80000000u | (mantissa << 15);
+    const quint32 shift = 31 - exponent;
+    if (shift == 0)
+        return static_cast<int>(value);
+    const quint32 result = (value >> shift) + ((value >> (shift - 1)) & 1);
+    return static_cast<int>(result);
 }
 
 class Player
@@ -104,9 +130,13 @@ public:
         m_vblank = o.pal ? 50 : 60;
         m_frameMs8 = 0x3e800 / m_vblank;            // 16(a4): ms << 8 per frame
         m_clock = o.pal ? kPalClock : kNtscClock;
-        for (int c = 0; c < kChannels; ++c)
+        for (int c = 0; c < kChannels; ++c) {
             m_channels[c].instrument = file.instrument(c);
-        setTempo(song.initialTempo << 4);
+            m_channels[c].rightPair = c & 1;   // $521e4: odd channels on the right pair
+        }
+        // $532c6: play starts at the file's tempo (the word after "MXTX");
+        // the first frame advances with it, before the song's own tempo event
+        setTempo((file.flags() > 0 ? file.flags() : song.initialTempo) << 4);
     }
 
     AudioSample run()
@@ -121,16 +151,15 @@ public:
         int tailFrames = -1;
         QByteArray pcm;
         for (int frame = 0; frame < maxFrames; ++frame) {
-            if (!m_ended) {
-                interrupt();
-            } else {
-                updateVoices();
-                if (tailFrames < 0) {
+            // after the end of the song ($FF) the driver reads no more events
+            // but the pending note offs and the envelopes go on
+            interrupt();
+            if (m_ended) {
+                if (tailFrames < 0)
                     tailFrames = m_options.releaseSeconds * m_vblank;
-                    for (Voice &v : m_voices) // the game stops the music
-                        if (v.state > 3) v.state = 3;
-                }
-                if (--tailFrames <= 0)
+                const bool silent = std::none_of(std::begin(m_voices), std::end(m_voices),
+                                                 [](const Voice &v) { return v.playing && v.paulaVolume > 0; });
+                if (silent || --tailFrames <= 0)
                     break;
             }
             carry += samplesPerFrame;
@@ -142,6 +171,33 @@ public:
         out.frameCount = pcm.size() / 4;
         out.valid = out.frameCount > 0;
         return out;
+    }
+
+    QVector<QVector<MxMusicFile::VoiceFrame>> trace(int frames)
+    {
+        QVector<QVector<MxMusicFile::VoiceFrame>> result;
+        const double samplesPerFrame = static_cast<double>(m_options.sampleRate) / m_vblank;
+        double carry = 0.0;
+        QByteArray pcm;
+        for (int frame = 0; frame < frames; ++frame) {
+            interrupt();
+            carry += samplesPerFrame;
+            const int n = static_cast<int>(carry);
+            carry -= n;
+            pcm.clear();
+            mix(pcm, n);
+            QVector<MxMusicFile::VoiceFrame> row(kVoices);
+            for (int v = 0; v < kVoices; ++v) {
+                const Voice &voice = m_voices[v];
+                if (voice.playing && voice.sample) {
+                    row[v].period = voice.period;
+                    row[v].volume = voice.paulaVolume;
+                    row[v].cycles = voice.inLoop ? 0 : 1;
+                }
+            }
+            result.append(row);
+        }
+        return result;
     }
 
 private:
@@ -170,8 +226,8 @@ private:
             voice.noteOffAt = -1;
         }
 
-        // events due now
-        while (m_next < m_song.events.size()) {
+        // events due now (none after the end, $53072 clears "playing")
+        while (!m_ended && m_next < m_song.events.size()) {
             const MxEvent &e = m_song.events.at(m_next);
             const qint64 at = m_eventTime + e.delta;
             if (at > now)
@@ -191,7 +247,10 @@ private:
                     m_voices[v].noteOffLeft = (static_cast<qint64>(e.word) + late) << 8;
                 }
             } else if (e.status == 0x80) {
-                if ((m_increment >> 8) >= e.word || e.word == 0) {
+                // $53008: cmp.w + bmi, a signed word comparison: ramps of
+                // $8000 ticks or more start at once (pod.mx has 64000)
+                const quint16 diff = static_cast<quint16>((m_increment >> 8) - e.word);
+                if (!(diff & 0x8000)) {
                     setTempo(e.data << 4);
                     m_rampLength = 0;
                 } else {
@@ -218,13 +277,21 @@ private:
         }
 
         // tempo ramp
+        // $531b4: tempo ramp, with the driver's arithmetic: the delta is
+        // read back as an unsigned word, multiplied by the elapsed ticks in 32
+        // bits ($52484, overflowing on long ramps), divided with sign by the
+        // ramp length ($52408) and added to the start tempo as a word.
         if (m_rampLength > 0) {
-            m_rampDone += m_increment;
+            m_rampDone = static_cast<quint32>(m_rampDone + m_increment);
             if (m_rampDone >= m_rampLength) {
-                setTempo(m_rampFrom + m_rampDelta);
+                setTempo(static_cast<quint16>(m_rampFrom + m_rampDelta));
                 m_rampLength = 0;
             } else {
-                setTempo(m_rampFrom + static_cast<int>(m_rampDelta * m_rampDone / m_rampLength));
+                const quint32 product = static_cast<quint32>(static_cast<quint16>(m_rampDelta))
+                                        * static_cast<quint32>(m_rampDone);
+                const qint32 numerator = static_cast<qint32>(product);
+                const qint32 step = numerator / static_cast<qint32>(m_rampLength);
+                setTempo(static_cast<quint16>(step + m_rampFrom));
             }
         }
         updateVoices();
@@ -260,8 +327,10 @@ private:
             c.volume = value ? value + 1 : 0;
             break;
         case 10:
+            // $522c8: centre goes back to the channel's own side
             if (value < 0x40) c.rightPair = true;
             else if (value > 0x40) c.rightPair = false;
+            else c.rightPair = channel & 1;
             break;
         case 0x40:
             c.sustainPedal = value & 0x40;
@@ -288,51 +357,25 @@ private:
     // $51d1e (Dark Queen), $4b16e (Pools): the voice for a new note.
     // Start with the channel's side pair (0/3 left, 1/2 right), or the other
     // pair when no voice of this one is free or releasing but one of the
-    // other is (Dark Queen skips this for channels 8-15). In a pair the voice
-    // with the lower state comes first, equal states alternate (two bytes of
-    // the driver remember the last choice per pair). A voice is taken when
-    // the new note's priority (its channel; channel & 7 in Dark Queen) is at
-    // least the priority of the note it plays (its channel, 0 when free):
-    // the voice's pair partner, then the other pair, are tried; when none can
-    // be taken the note is not played.
+    // other is. In a pair the voice with the lower state is taken; on equal
+    // states the two voices alternate (two bytes of the driver remember the
+    // last choice per pair). The driver also has priorities for notes played
+    // through its other entry ($53638): the sequencer plays every note with
+    // priority 0, so a music note always gets a voice.
     int allocate(int channel)
     {
-        const bool darkQueen = m_file.driver() == MxMusicFile::DarkQueen;
-        const int priority = darkQueen ? (channel & ~8) : channel;
         int d0 = m_channels[channel].rightPair ? 1 : 0;
-        if (!(darkQueen && (channel & 8))) {
-            auto pairMin = [this](int first) {
-                return qMin(m_voices[first].state, m_voices[first ^ 3].state);
-            };
-            if (pairMin(d0) > 3 && pairMin(d0 ^ 1) <= 3)
-                d0 ^= 1;
-        }
-        int tieIndex = 0;
-        auto best = [this, &tieIndex](int v) {   // $51e0a
-            tieIndex = ((v - 1) & 2) ? 1 : 0;
-            const int diff = m_voices[v].state - m_voices[v ^ 3].state;
-            if (diff < 0)
-                return v;
-            if (diff > 0)
-                return v ^ 3;
-            return (v & 2) == m_pairChoice[tieIndex] ? v ^ 3 : v;
+        auto pairMin = [this](int first) {
+            return qMin(m_voices[first].state, m_voices[first ^ 3].state);
         };
-        auto takes = [this, priority](int v) {
-            const Voice &voice = m_voices[v];
-            return priority >= (voice.channel < 0 ? 0 : voice.channel);
-        };
-        int v = best(d0);
-        if (!takes(v)) {
-            v ^= 3;
-            if (!takes(v)) {
-                v = best(v ^ 1);
-                if (!takes(v)) {
-                    v ^= 3;
-                    if (!takes(v))
-                        return -1;
-                }
-            }
-        }
+        if (pairMin(d0) > 3 && pairMin(d0 ^ 1) <= 3)
+            d0 ^= 1;
+        // $51e0a
+        const int tieIndex = ((d0 - 1) & 2) ? 1 : 0;
+        const int diff = m_voices[d0].state - m_voices[d0 ^ 3].state;
+        int v = d0;
+        if (diff > 0 || (diff == 0 && (d0 & 2) == m_pairChoice[tieIndex]))
+            v = d0 ^ 3;
         m_pairChoice[tieIndex] = v & 2;
         return v;
     }
@@ -521,10 +564,11 @@ private:
                     continue;
                 const MxSample &s = *voice.sample;
                 // one-shot part once, then the loop part for ever (audio.device
-                // requests with 1 and 0 cycles); no loop: the voice ends
+                // requests with 1 and 0 cycles); no loop: the write is
+                // returned and the driver frees the voice ($521b2)
                 if (!voice.inLoop && voice.position >= s.oneShot) {
                     if (s.loop <= 0) {
-                        voice.playing = false;
+                        stopVoice(voice);
                         continue;
                     }
                     voice.position -= s.oneShot;
@@ -710,4 +754,12 @@ AudioSample MxMusicFile::render(int song, const RenderOptions &options) const
     AudioSample sample = player.run();
     sample.name = QStringLiteral("Song %1").arg(song + 1);
     return sample;
+}
+
+QVector<QVector<MxMusicFile::VoiceFrame>> MxMusicFile::trace(int song, int frames) const
+{
+    if (song < 0 || song >= m_songs.size())
+        return {};
+    Player player(*this, m_songs.at(song), RenderOptions());
+    return player.trace(frames);
 }

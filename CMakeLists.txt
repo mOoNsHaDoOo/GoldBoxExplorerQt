@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GoldBoxExplorerQt VERSION 0.97.0 LANGUAGES CXX)
+project(GoldBoxExplorerQt VERSION 0.98.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -175,6 +175,16 @@ if(BUILD_TESTING)
         set_tests_properties(smoke_TEST.SLB PROPERTIES
                              ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                              TIMEOUT 10)
+    endif()
+
+    # MX voice trace (the format of tools/mx_driver_compare.cpp): channel 0
+    # takes voice 3 first (left pair, alternation byte 0).
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.MX")
+        add_test(NAME mx_trace
+                 COMMAND gbexplorer --mx-trace "${CMAKE_CURRENT_SOURCE_DIR}/testdata/TEST.MX" 1 3)
+        set_tests_properties(mx_trace PROPERTIES
+                             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                             PASS_REGULAR_EXPRESSION "2 \\| 0 0 -1 \\| 0 0 -1 \\| 0 0 -1 \\| 509 50 0")
     endif()
 
     # Death Knights of Krynn / Pool of Radiance record viewers.

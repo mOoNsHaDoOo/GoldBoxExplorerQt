@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("GoldBoxExplorer"));
     QApplication::setApplicationName(QStringLiteral("GoldBoxExplorerQt"));
     QApplication::setApplicationDisplayName(QStringLiteral("Gold Box Explorer"));
-    QApplication::setApplicationVersion(QStringLiteral("0.97"));
+    QApplication::setApplicationVersion(QStringLiteral("0.98"));
 
     if (QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
@@ -220,6 +220,25 @@ int main(int argc, char *argv[])
             view->applyMoves(moves);
         qInfo().noquote() << QStringLiteral("x %1 y %2 facing %3").arg(view->cursorX()).arg(view->cursorY()).arg(view->facing());
         return view->viewImage().save(QString::fromLocal8Bit(argv[5])) ? 0 : 1;
+    }
+
+    // Per-frame state of the Paula voices of an MX song:
+    // --mx-trace FILE SONG FRAMES (SONG from 1); one line per frame,
+    // "frame | period volume cycles" for each voice.
+    if (argc >= 5 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--mx-trace")) {
+        MxMusicFile mx;
+        if (!mx.load(QString::fromLocal8Bit(argv[2]))) {
+            qWarning().noquote() << mx.errorString();
+            return 1;
+        }
+        const auto rows = mx.trace(QString::fromLocal8Bit(argv[3]).toInt() - 1, QString::fromLocal8Bit(argv[4]).toInt());
+        for (int f = 0; f < rows.size(); ++f) {
+            std::printf("%d", f);
+            for (const MxMusicFile::VoiceFrame &v : rows.at(f))
+                std::printf(" | %d %d %d", v.cycles < 0 ? 0 : v.period, v.cycles < 0 ? 0 : v.volume, v.cycles);
+            std::printf("\n");
+        }
+        return 0;
     }
 
     // Lists the inner blocks of a multi-block file (DAX, DAA, GLB, TLB).
