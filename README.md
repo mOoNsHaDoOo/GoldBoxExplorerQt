@@ -25,7 +25,7 @@ conversion was developed with AI assistance (DeepSeek Flash V4.1).
 
 ## Status
 
-Current version: **0.99**.
+Current version: **1.00**.
 
 The macOS build is the primary target and has been exercised with synthetic
 DAX/TLB/GEO/ECL/IFF/8SVX/DAA files and with real Amiga *Champions of Krynn*,
@@ -64,6 +64,11 @@ project is portable to Linux and Windows.
 
 ### Recent additions
 
+- **Amiga picture palettes.** Palettes of the GLIB picture libraries are
+  rounded to 4 bits per gun, as the game does when it loads them. The
+  saturated colours of some `BIGPIC.TLB` pictures of Secret of the Silver
+  Blades come from the game: its palettes keep the ten interface colours
+  and change only a few slots per picture (see `docs/AMIGA_GLIB.md`).
 - **ECL Basic for Death Knights of Krynn and Pool of Radiance.** The ECL
   Basic decoder now has one dialect per game: command names, operand
   counts, variable-length commands, the commands skipped after a false

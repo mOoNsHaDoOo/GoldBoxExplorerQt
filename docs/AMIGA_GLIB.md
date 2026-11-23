@@ -54,12 +54,23 @@ bytes, drawing method.  Low nibble of the method:
 | 1 | mask plane (0 = transparent), then the raw bitplanes |
 | 2 | ByteRun1 rows: 4-bit chunky pixels when the high nibble is 0 ($44fca converts them), row-interleaved planes otherwise |
 | 3 | delta ($43faa): words *command bytes*, *data bytes per plane*; the same commands run for every plane, each plane with its own data. Command `00n` skip, `01n` n masked bytes (masks in the command stream), `10n` fill n with one data byte, `11n` copy n data bytes, 0 ends the row. With no image of the same size before it, the delta is drawn over an empty frame and the bytes it touches become the mask |
-| 8 | palette: 16 RGB triplets (32 with high nibble E), no image |
+| 8 | palette: 16 RGB triplets (32 with high nibble E), no image; the game keeps 4 bits per gun, `(v + 8) / 17` ($43cca) |
 
 High nibble: 0 = 4 planes, E = 5 planes, any other value = 4 row-interleaved
 planes (title pictures).  Images before the first palette of their file use
 the first palette of `ALWAYS.TLB`, searched next to the file and in the sibling
 disk folders.
+
+## Palettes of the pictures
+
+The game loads the whole palette entry of a picture library (by library and
+index, $401ec; method 8 only) through $43cca, which rounds every gun to 4
+bits. In Secret of the Silver Blades every palette (`ALWAYS.TLB`, `8X8D.TLB`,
+`PIC.TLB`, `BIGPIC.TLB`...) keeps the same ten interface colours and changes
+only a few slots per picture, so the big pictures of `BIGPIC.TLB` are drawn
+mostly with the interface colours: their strong, dithered look (the cave
+with the dragon and the well, the first two) is the game's own, not a wrong
+palette. Each picture uses the palette that precedes it in its sub-library.
 
 ## Coverage
 

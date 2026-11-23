@@ -157,9 +157,12 @@ private:
                 const int count = high == 0xE0 ? 32 : 16;
                 QVector<QRgb> palette = m_palette;
                 palette.resize(qMax(palette.size(), 32));
+                // The game keeps 4 bits per gun: (v + 8) / 17 ($43cca)
+                auto gun = [&lib](int at) {
+                    return (byteAt(lib, at) + 8) / 17 * 17;
+                };
                 for (int c = 0; c < count; ++c)
-                    palette[c] = qRgb(byteAt(lib, data + c * 3), byteAt(lib, data + c * 3 + 1),
-                                      byteAt(lib, data + c * 3 + 2));
+                    palette[c] = qRgb(gun(data + c * 3), gun(data + c * 3 + 1), gun(data + c * 3 + 2));
                 m_palette = palette;
                 m_result.palettes.append(palette.mid(0, count));
                 m_havePalette = true;
